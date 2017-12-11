@@ -58,17 +58,23 @@ int main(int argv, char **argc) {
                 camCal1.cameraCalibration(savedImages);
                 camCal1.saveCameraCalibration("camera_calibration_results");
                 break;
+
             case 27:    // esc
                 //exit
                 return 0;
                 break;
-            default:   // space
+
+            case ' ':   // space
                 //saving image
                 if (found) {
                     Mat temp;
                     frame.copyTo(temp);
                     savedImages.push_back(temp);
                 }
+                cout<<" "<<savedImages.size()<<" have been collected!\n";
+                break;
+
+            default:
                 break;
         }
     }
