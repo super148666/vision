@@ -23,9 +23,13 @@ using namespace std;
 int SZ = 8;
 int MZ = 12;
 int LZ = 24;
-int VideoWidth = 160;
-int VideoHeight = 120;
+int VideoWidth = 320;
+int VideoHeight = 240;
 float affineFlags = WARP_INVERSE_MAP|INTER_LINEAR;
+
+vector<Mat> detectedConesCells;
+vector<string> emptyCones;
+vector<string> emptyNonCones;
 
 Mat deskew(Mat& img){
     Moments m = moments(img);
@@ -114,26 +118,6 @@ std::vector<cv::Rect> get_sliding_windows(Rect roi,int winWidth,int winHeight, i
     return rects;
 }
 
-void CreateSmallHOG(vector<vector<float> > &dataHOG, vector<Mat> &dataCells){
-
-    dataHOG.clear();
-    for(int y=0;y<dataCells.size();y++){
-        vector<float> descriptors;
-    	hogSmall.compute(dataCells[y],descriptors);
-    	dataHOG.push_back(descriptors);
-    }
-}
-
-void CreateLargeHOG(vector<vector<float> > &dataHOG, vector<Mat> &dataCells){
-
-    dataHOG.clear();
-    for(int y=0;y<dataCells.size();y++){
-        vector<float> descriptors;
-        hogLarge.compute(dataCells[y],descriptors);
-        dataHOG.push_back(descriptors);
-    }
-}
-
 void ConvertVectortoMatrix(vector<vector<float> > &dataHOG, Mat &dataMat)
 {
 
@@ -184,16 +168,45 @@ void EvaluateSVM(Mat& inputImg, Mat& outputImg, Mat& heatMap, vector<Rect> windo
 
 int main(int argc, char** argv)
 {
+    bool enableSmall = false;
+    bool enableMeduim = false;
+    bool enableLarge = false;
+
+    for(int i = 0; i < argc; i++)
+    {
+        if(string(argv[i])=="all")
+        {
+            enableSmall = true;
+            enableMeduim = true;
+            enableLarge = true;
+        }
+
+        if(string(argv[i])=="s")
+        {
+            enableSmall = true;
+        }
+
+        if(string(argv[i])=="m")
+        {
+            enableMeduim = true;
+        }
+
+        if(string(argv[i])=="l")
+        {
+            enableLarge = true;
+        }
+    }
+
     auto cap = VideoCapture("./test.webm");
     Ptr<SVM> svmSmall = SVM::load("./model8.yml");
     Ptr<SVM> svmMedium = SVM::load("./model12.yml");
     Ptr<SVM> svmLarge = SVM::load("./model24.yml");
-    const Rect roi_large(0,VideoHeight/20*10,VideoWidth,VideoHeight/20*10);
-    const Rect roi_medium(0,VideoHeight/20*9,VideoWidth,VideoHeight/20*8);
-    const Rect roi_small(0,VideoHeight/20*9,VideoWidth,VideoHeight/40*7);
-    vector<Rect> windowsSmall = get_sliding_windows(roi_small,SZ,SZ,1);
-    vector<Rect> windowsMedium = get_sliding_windows(roi_medium,MZ,MZ,3);
-    vector<Rect> windowsLarge = get_sliding_windows(roi_large,LZ,LZ,4);
+    const Rect roi_large(0,VideoHeight/20*8,VideoWidth,VideoHeight/20*12);
+    const Rect roi_medium(0,VideoHeight/20*8,VideoWidth,VideoHeight/20*6);
+    const Rect roi_small(0,VideoHeight/20*8,VideoWidth,VideoHeight/40*4);
+    vector<Rect> windowsSmall = get_sliding_windows(roi_small,SZ,SZ,2);
+    vector<Rect> windowsMedium = get_sliding_windows(roi_medium,MZ,MZ,4);
+    vector<Rect> windowsLarge = get_sliding_windows(roi_large,LZ,LZ,8);
     hogSmall.load("./hogSmall.yml");
     hogMedium.load("./hogMedium.yml");
     hogLarge.load("./hogLarge.yml");
@@ -209,27 +222,35 @@ int main(int argc, char** argv)
 
         resize(imgshow,imgshow,Size(VideoWidth,VideoHeight));
         imgshow.copyTo(img);
-
+        Mat gray;
+        cvtColor(img,gray,COLOR_BGR2GRAY);
+        if(enableSmall)
         EvaluateSVM(img,imgshow,heatMap,windowsSmall,svmSmall,hogSmall);
+        if(enableMeduim)
         EvaluateSVM(img,imgshow,heatMap,windowsMedium,svmMedium,hogMedium);
-//        EvaluateSVM(img,imgshow,heatMap,windowsLarge,svmLarge,hogLarge);
+        if(enableLarge)
+        EvaluateSVM(img,imgshow,heatMap,windowsLarge,svmLarge,hogLarge);
 
         for(int i=0;i<heatMap.rows;i++) {
             for(int j=0;j<heatMap.cols;j++) {
                 if(heatMap.at<uint8_t>(i,j)>=2){
-                    heatMap.at<uint8_t>(i,j) = img.at<uint8_t>(i,j);
+                    heatMap.at<uint8_t>(i,j) = gray.at<uint8_t>(i,j);
                 }
                 else {
                     heatMap.at<uint8_t>(i,j) = 0;
                 }
             }
         }
-//        rectangle(imgshow,roi_large,Scalar(0,255,0));
-//        rectangle(imgshow,roi_small,Scalar(0,0,255));
-//        rectangle(imgshow,roi_medium,Scalar(255,0,0));
-        imshow("heat",imgshow);
+        if(enableLarge)
+        rectangle(imgshow,roi_large,Scalar(0,255,0));
+        if(enableSmall)
+        rectangle(imgshow,roi_small,Scalar(0,0,255));
+        if(enableMeduim)
+        rectangle(imgshow,roi_medium,Scalar(255,0,0));
+        imshow("img",imgshow);
+        imshow("heat",heatMap);
 		waitKey(1);
-		imgshow.release();
+        imgshow.release();
 		img.release();
     }
     return 0;

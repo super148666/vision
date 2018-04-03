@@ -39,29 +39,29 @@ using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 
 
-string pathNameCones = "../cones/GTI/";
-int numCones = 206;
-string pathNameNonCones = "../non-cones/GTI/";
-int numNonCones = 3900;
-int SZ = 8;
+string pathNameCones = "./cones/";
+int numCones = 267;
+string pathNameNonCones = "./non-cones/";
+int numNonCones = 792;
+int SZ = 24;
 float affineFlags = WARP_INVERSE_MAP|INTER_LINEAR;
-
+float trainSetSize = 0.9;
 
 Mat deskew(Mat& img){
 
-    Moments m = moments(img);
-    if(abs(m.mu02) < 1e-2){
-        return img.clone();
-    }
-    float skew = m.mu11/m.mu02;
-    Mat warpMat = (Mat_<float>(2,3) << 1, skew, -0.5*SZ*skew, 0, 1, 0);
-    Mat imgOut = Mat::zeros(img.rows, img.cols, img.type());
-    warpAffine(img, imgOut, warpMat, imgOut.size(),affineFlags);
+//    Moments m = moments(img);
+//    if(abs(m.mu02) < 1e-2){
+//        return img.clone();
+//    }
+//    float skew = m.mu11/m.mu02;
+//    Mat warpMat = (Mat_<float>(2,3) << 1, skew, -0.5*SZ*skew, 0, 1, 0);
+//    Mat imgOut = Mat::zeros(img.rows, img.cols, img.type());
+//    warpAffine(img, imgOut, warpMat, imgOut.size(),affineFlags);
+//
+//    return imgOut;
 
-    return imgOut;
 
-
-//    return img;
+    return img;
 }
 
 void loadDataLabel(string &pathNameCones, int numCones, string &pathNameNonCones, int numNonCones, vector<Mat> &trainCells, vector<Mat> &validateCells, vector<Mat> &testCells, vector<int> &trainLabels, vector<int> &validateLabels, vector<int> &testLabels){
@@ -85,8 +85,8 @@ void loadDataLabel(string &pathNameCones, int numCones, string &pathNameNonCones
 	// shuffle
 	// 80% into train set; 10% into validate set; 10% into test set
 	random_shuffle(allCones.begin(), allCones.end());
-	const size_t trainSizeCones = allCones.size() * 0.8;
-	const size_t validateSizeCones = allCones.size() * 0.1;
+	const size_t trainSizeCones = allCones.size() * trainSetSize;
+	const size_t validateSizeCones = allCones.size() * 0;
 	const size_t testSizeCones = allCones.size() - trainSizeCones - validateSizeCones;
 	//clear
 	trainCells.clear();
@@ -124,8 +124,8 @@ void loadDataLabel(string &pathNameCones, int numCones, string &pathNameNonCones
 	// shuffle
 	// 80% into train set; 10% into validate set; 10% into test set
 	random_shuffle(allNonCones.begin(), allNonCones.end());
-	const size_t trainSizeNonCones = allNonCones.size() * 0.8;
-	const size_t validateSizeNonCones = allNonCones.size() * 0.1;
+	const size_t trainSizeNonCones = allNonCones.size() * trainSetSize;
+	const size_t validateSizeNonCones = allNonCones.size() * 0;
 	const size_t testSizeNonCones = allNonCones.size() - trainSizeNonCones - validateSizeNonCones;
 	//reserve
 	trainCells.reserve(trainSizeCones+trainSizeNonCones);
@@ -184,10 +184,10 @@ void CreateDeskewedData(vector<Mat> &deskewedTrainCells, vector<Mat> &deskewedVa
 
 HOGDescriptor hog(
         Size(SZ,SZ), //winSize
-        Size(4,4), //blocksize
-        Size(2,2), //blockStride,
-        Size(1,1), //cellSize,
-                 1, //nbins,
+        Size(8,8), //blocksize
+        Size(4,4), //blockStride,
+        Size(4,4), //cellSize,
+                 6, //nbins,
                   1, //derivAper,
                  -1, //winSigma,
                   0, //histogramNormType,
@@ -276,13 +276,13 @@ void SVMtrain(Mat &trainMat,vector<int> &trainLabels, Mat &testResponse,Mat &tes
 #ifdef USE_OPENCV_3
     Ptr<SVM> svm = SVM::create();
     svm->setGamma(1); //0.50625
-    svm->setC(0.12);
+    svm->setC(0.3);
     svm->setKernel(SVM::LINEAR);
     svm->setType(SVM::C_SVC);
     Ptr<TrainData> td = TrainData::create(trainMat, ROW_SAMPLE, trainLabels);
     svm->train(td);
-    svm->save("model8.yml");
-    hog.save("hogSmall.yml");
+    svm->save("model24.yml");
+    hog.save("hogLarge.yml");
     svm->predict(testMat, testResponse);
     //getSVMParams(svm);
 #endif
