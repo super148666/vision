@@ -23,9 +23,12 @@ using namespace std;
 int SZ = 8;
 int MZ = 12;
 int LZ = 24;
-int VideoWidth = 320;
-int VideoHeight = 240;
+int VideoWidth = 160;
+int VideoHeight = 120;
 float affineFlags = WARP_INVERSE_MAP|INTER_LINEAR;
+
+bool WebcamEnable = false;
+bool BackupEnable = false;
 
 vector<Mat> detectedConesCells;
 vector<string> emptyCones;
@@ -195,24 +198,67 @@ int main(int argc, char** argv)
         {
             enableLarge = true;
         }
+        
+        if(string(argv[i])=="webcam")
+        {
+			WebcamEnable = true;
+		}
+		
+		if(string(argv[i])=="backup")
+		{
+			BackupEnable = true;
+		}
     }
 
-    auto cap = VideoCapture("./test.webm");
-    Ptr<SVM> svmSmall = SVM::load("./model8.yml");
-    Ptr<SVM> svmMedium = SVM::load("./model12.yml");
-    Ptr<SVM> svmLarge = SVM::load("./model24.yml");
-    const Rect roi_large(0,VideoHeight/20*8,VideoWidth,VideoHeight/20*12);
-    const Rect roi_medium(0,VideoHeight/20*8,VideoWidth,VideoHeight/20*6);
-    const Rect roi_small(0,VideoHeight/20*8,VideoWidth,VideoHeight/40*4);
-    vector<Rect> windowsSmall = get_sliding_windows(roi_small,SZ,SZ,2);
-    vector<Rect> windowsMedium = get_sliding_windows(roi_medium,MZ,MZ,4);
-    vector<Rect> windowsLarge = get_sliding_windows(roi_large,LZ,LZ,8);
-    hogSmall.load("./hogSmall.yml");
-    hogMedium.load("./hogMedium.yml");
-    hogLarge.load("./hogLarge.yml");
+    auto cap = WebcamEnable?VideoCapture(0):VideoCapture("./test.webm");
+    Rect roi_large;
+    Rect roi_medium;
+    Rect roi_small;
+    vector<Rect> windowsLarge;
+    vector<Rect> windowsMedium;
+    vector<Rect> windowsSmall;
+    Ptr<SVM> svmLarge;
+    Ptr<SVM> svmMedium;
+    Ptr<SVM> svmSmall;
+    if(BackupEnable) {		
+		roi_large=Rect(0,VideoHeight/20*15,VideoWidth,VideoHeight/20*5);
+		roi_medium=Rect(0,VideoHeight/20*10,VideoWidth,VideoHeight/20*6);
+		roi_small=Rect(0,VideoHeight/20*9,VideoWidth,VideoHeight/40*9);
+		windowsSmall = get_sliding_windows(roi_small,SZ,SZ,1);
+		windowsMedium = get_sliding_windows(roi_medium,MZ,MZ,3);
+		windowsLarge = get_sliding_windows(roi_large,LZ,LZ,4);
+		svmSmall = SVM::load("./backup/configure/model8.yml");
+		svmMedium = SVM::load("./backup/configure/model12.yml");
+		svmLarge = SVM::load("./backup/configure/model24.yml");
+		hogSmall.load("./backup/configure/hogSmall.yml");
+		hogMedium.load("./backup/configure/hogMedium.yml");
+		hogLarge.load("./backup/configure/hogLarge.yml");
+		cout<<cap.get(CV_CAP_PROP_POS_FRAMES);
+		cout<<":"<<cap.get(CV_CAP_PROP_POS_MSEC)<<endl;
+		cap.set(CV_CAP_PROP_POS_FRAMES,700);
+		cout<<cap.get(CV_CAP_PROP_POS_FRAMES);
+		cout<<":"<<cap.get(CV_CAP_PROP_POS_MSEC)<<endl;
+	}
+	else {
+		svmSmall = SVM::load("./model8.yml");
+		svmMedium = SVM::load("./model12.yml");
+		svmLarge = SVM::load("./model24.yml");
+		hogSmall.load("./hogSmall.yml");
+		hogMedium.load("./hogMedium.yml");
+		hogLarge.load("./hogLarge.yml");		
+		roi_large=Rect(0,VideoHeight/20*8,VideoWidth,VideoHeight/20*12);
+		roi_medium=Rect(0,VideoHeight/20*8,VideoWidth,VideoHeight/20*6);
+		roi_small=Rect(0,VideoHeight/20*8,VideoWidth,VideoHeight/40*8);
+		windowsSmall = get_sliding_windows(roi_small,SZ,SZ,1);
+		windowsMedium = get_sliding_windows(roi_medium,MZ,MZ,4);
+		windowsLarge = get_sliding_windows(roi_large,LZ,LZ,4);
+	}
     const Mat emptyHeatMap(VideoHeight,VideoWidth,CV_8UC1,Scalar(0));
     int count = 0;
     while(cap.isOpened()) {
+		if(BackupEnable) {
+			if (count == 380) break;
+		}
 		Mat heatMap = emptyHeatMap.clone();
 		Mat img,imgshow;
         cout<<"frame no:"<< ++count << endl;
@@ -247,6 +293,9 @@ int main(int argc, char** argv)
         rectangle(imgshow,roi_small,Scalar(0,0,255));
         if(enableMeduim)
         rectangle(imgshow,roi_medium,Scalar(255,0,0));
+        resize(imgshow,imgshow,Size(VideoWidth*4,VideoHeight*4));
+        
+        resize(heatMap,heatMap,Size(VideoWidth*4,VideoHeight*4));
         imshow("img",imgshow);
         imshow("heat",heatMap);
 		waitKey(1);
