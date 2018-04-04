@@ -8,3 +8,6 @@ classifier
 sampler
 camCal
 roiDETECT
+cones/
+non-cones/
+
