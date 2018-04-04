@@ -3,3 +3,8 @@ CMakeCache.txt
 *.cmake
 Makefile
 build/
+trainer
+classifier
+sampler
+camCal
+roiDETECT
