@@ -29,10 +29,15 @@ float affineFlags = WARP_INVERSE_MAP|INTER_LINEAR;
 
 bool WebcamEnable = false;
 bool BackupEnable = false;
+bool Sampling = false;
 
 vector<Mat> detectedConesCells;
 vector<string> emptyCones;
 vector<string> emptyNonCones;
+int numCones = 0;
+int numNonCones = 0;
+string pathCones("./cones/");
+string pathNonCones("./non-cones/");
 
 Mat deskew(Mat& img){
     Moments m = moments(img);
@@ -164,9 +169,117 @@ void EvaluateSVM(Mat& inputImg, Mat& outputImg, Mat& heatMap, vector<Rect> windo
             Mat temp(outputImg.rows,outputImg.cols,CV_8UC1,Scalar(0));
             rectangle(temp,windows[i],Scalar(1),-1);
             heatMap += temp;
+            Mat tempp = inputImg(windows[i]).clone();
+            resize(tempp,tempp,Size(64,64));
+            detectedConesCells.push_back(tempp);
+
         }
     }
 
+}
+
+void CollectSamples()
+{
+    if(detectedConesCells.empty()) return;
+    int index = 0;
+    vector<string> filename;
+    int cellSize = detectedConesCells.size();
+    filename.resize(cellSize,"not saved");
+    namedWindow("samples",WINDOW_AUTOSIZE|WINDOW_NORMAL);
+    char key = 0;
+    while(1) {
+        cout<<"current index: "<<index<<" | "<<filename[index]<<endl;
+        cout<<"w:cone | s:non-cone | e:redo | space:next frame"<<endl;
+        imshow("samples",detectedConesCells[index]);
+        key = waitKey(0);
+        switch(key){
+            case 'a':
+                if(index>0) index--;
+                else index = cellSize-1;
+                break;
+
+            case 'd':
+                if(index<(cellSize-1)) index++;
+                else index = 0;
+                break;
+
+            case 'w':   //cones
+                if(filename[index]=="not saved") {
+                    if(emptyCones.empty())
+                        filename[index] = pathCones + "image" + boost::lexical_cast<string>(++numCones) + ".png";
+                    else {
+                        filename[index]=emptyCones.front();
+                        emptyCones.erase(emptyCones.begin());
+                    }
+                    imwrite(filename[index], detectedConesCells[index]);
+                }
+                else {
+                    if(filename[index].find("non-")!=string::npos) {
+                        emptyNonCones.push_back(filename[index]);
+                        if(emptyCones.empty())
+                            filename[index] = pathCones + "image" + boost::lexical_cast<string>(++numCones) + ".png";
+                        else {
+                            filename[index]=emptyCones.front();
+                            emptyCones.erase(emptyCones.begin());
+                        }
+                        imwrite(filename[index], detectedConesCells[index]);
+                    }
+                }
+                cout<<"image "<<index<<" has been saved at "<<filename[index]<<endl;
+                if(index<(cellSize-1)) index++;
+                else index = 0;
+                break;
+
+            case 's':   //non-cones
+                if(filename[index]=="not saved") {
+                    if(emptyNonCones.empty())
+                        filename[index] = pathNonCones+"image" + boost::lexical_cast<string>(++numNonCones) + ".png";
+                    else {
+                        filename[index]=emptyNonCones.front();
+                        emptyNonCones.erase(emptyNonCones.begin());
+                    }
+                    imwrite(filename[index], detectedConesCells[index]);
+                }
+                else {
+                    if(filename[index].find("non-")==string::npos) {
+                        emptyCones.push_back(filename[index]);
+                        if(emptyNonCones.empty())
+                            filename[index] = pathNonCones+"image" + boost::lexical_cast<string>(++numNonCones) + ".png";
+                        else {
+                            filename[index]=emptyNonCones.front();
+                            emptyNonCones.erase(emptyNonCones.begin());
+                        }
+                        imwrite(filename[index], detectedConesCells[index]);
+                    }
+                }
+                cout<<"image "<<index<<" has been saved at "<<filename[index]<<endl;
+                if(index<(cellSize-1)) index++;
+                else index = 0;
+                break;
+
+            case 'e':   //delete
+                if(filename[index]=="not saved") {
+                    cout<<"image "<<index<<" was not saved"<<endl;
+                }
+                else {
+                    string command = "rm -rf "+filename[index];
+                    system(command.c_str());
+                    if(filename[index].find("non-")==string::npos)
+                        emptyCones.push_back(filename[index]);
+                    else
+                        emptyNonCones.push_back(filename[index]);
+                    filename[index] = "not saved";
+                }
+                break;
+
+            case ' ':
+                destroyWindow("samples");
+                return;
+
+            default:
+                break;
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -208,6 +321,16 @@ int main(int argc, char** argv)
 		{
 			BackupEnable = true;
 		}
+
+        if(string(argv[i])=="sampling")
+        {
+            Sampling = true;
+            cout<<"number of cones:";
+            cin>>numCones;
+            cout<<"number of non-cones:";
+            cin>>numNonCones;
+        }
+
     }
 
     auto cap = WebcamEnable?VideoCapture(0):VideoCapture("./test.webm");
@@ -220,10 +343,10 @@ int main(int argc, char** argv)
     Ptr<SVM> svmLarge;
     Ptr<SVM> svmMedium;
     Ptr<SVM> svmSmall;
-    if(BackupEnable) {		
+    if(BackupEnable) {
 		roi_large=Rect(0,VideoHeight/20*15,VideoWidth,VideoHeight/20*5);
-		roi_medium=Rect(0,VideoHeight/20*10,VideoWidth,VideoHeight/20*6);
-		roi_small=Rect(0,VideoHeight/20*9,VideoWidth,VideoHeight/40*9);
+		roi_medium=Rect(0,VideoHeight/20*11,VideoWidth,VideoHeight/20*7);
+		roi_small=Rect(0,VideoHeight/20*10,VideoWidth,VideoHeight/40*9);
 		windowsSmall = get_sliding_windows(roi_small,SZ,SZ,1);
 		windowsMedium = get_sliding_windows(roi_medium,MZ,MZ,3);
 		windowsLarge = get_sliding_windows(roi_large,LZ,LZ,4);
@@ -265,7 +388,7 @@ int main(int argc, char** argv)
         std::vector<cv::Point> Locations;
         bool success = cap.read(imgshow);
         if(!success) break;
-
+        detectedConesCells.clear();
         resize(imgshow,imgshow,Size(VideoWidth,VideoHeight));
         imgshow.copyTo(img);
         Mat gray;
@@ -287,17 +410,18 @@ int main(int argc, char** argv)
                 }
             }
         }
-        if(enableLarge)
-        rectangle(imgshow,roi_large,Scalar(0,255,0));
-        if(enableSmall)
-        rectangle(imgshow,roi_small,Scalar(0,0,255));
-        if(enableMeduim)
-        rectangle(imgshow,roi_medium,Scalar(255,0,0));
-        resize(imgshow,imgshow,Size(VideoWidth*4,VideoHeight*4));
+        //if(enableLarge) rectangle(imgshow,roi_large,Scalar(0,255,0));
+        //if(enableSmall) rectangle(imgshow,roi_small,Scalar(0,0,255));
+        //if(enableMeduim) rectangle(imgshow,roi_medium,Scalar(255,0,0));
+
+        //resize(imgshow,imgshow,Size(VideoWidth*4,VideoHeight*4));
         
-        resize(heatMap,heatMap,Size(VideoWidth*4,VideoHeight*4));
+        //resize(heatMap,heatMap,Size(VideoWidth*4,VideoHeight*4));
         imshow("img",imgshow);
         imshow("heat",heatMap);
+
+        if(Sampling) CollectSamples();
+
 		waitKey(1);
         imgshow.release();
 		img.release();

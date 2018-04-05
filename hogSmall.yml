@@ -5,7 +5,7 @@ hogSmall: !!opencv-object-detector-hog
    blockSize: [ 4, 4 ]
    blockStride: [ 2, 2 ]
    cellSize: [ 2, 2 ]
-   nbins: 12
+   nbins: 7
    derivAperture: 1
    winSigma: 1.
    histogramNormType: 0

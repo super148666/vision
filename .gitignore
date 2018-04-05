@@ -11,3 +11,5 @@ roiDETECT
 cones/
 non-cones/
 *.webm
+.idea/
+cmake-build-debug/

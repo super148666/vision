@@ -40,12 +40,12 @@ using std::this_thread::sleep_for;
 
 
 string pathNameCones = "./cones/";
-int numCones = 267;
+int numCones = 281;
 string pathNameNonCones = "./non-cones/";
-int numNonCones = 792;
-int SZ = 24;
+int numNonCones = 1680;
+int SZ = 8;
 float affineFlags = WARP_INVERSE_MAP|INTER_LINEAR;
-float trainSetSize = 0.9;
+float trainSetSize = 1;
 
 Mat deskew(Mat& img){
 
@@ -184,10 +184,10 @@ void CreateDeskewedData(vector<Mat> &deskewedTrainCells, vector<Mat> &deskewedVa
 
 HOGDescriptor hog(
         Size(SZ,SZ), //winSize
-        Size(8,8), //blocksize
-        Size(4,4), //blockStride,
-        Size(4,4), //cellSize,
-                 6, //nbins,
+        Size(4,4), //blocksize
+        Size(2,2), //blockStride,
+        Size(2,2), //cellSize,
+                 7, //nbins,
                   1, //derivAper,
                  -1, //winSigma,
                   0, //histogramNormType,
@@ -276,13 +276,13 @@ void SVMtrain(Mat &trainMat,vector<int> &trainLabels, Mat &testResponse,Mat &tes
 #ifdef USE_OPENCV_3
     Ptr<SVM> svm = SVM::create();
     svm->setGamma(1); //0.50625
-    svm->setC(0.3);
+    svm->setC(0.4);
     svm->setKernel(SVM::LINEAR);
     svm->setType(SVM::C_SVC);
     Ptr<TrainData> td = TrainData::create(trainMat, ROW_SAMPLE, trainLabels);
     svm->train(td);
-    svm->save("model24.yml");
-    hog.save("hogLarge.yml");
+    svm->save("model8.yml");
+    hog.save("hogSmall.yml");
     svm->predict(testMat, testResponse);
     //getSVMParams(svm);
 #endif
