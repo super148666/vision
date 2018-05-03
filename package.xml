@@ -1,0 +1,23 @@
+<package>
+  <name>vision</name>
+  <version>0.0.0</version>
+  <description>
+    <tt>RosSAE</tt>
+  </description>
+  <maintainer email="21435393@student.uwa.edu.au">Chao Zhang</maintainer>
+
+  <license>GPLv2</license>
+
+  <author>Chao Zhang</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <run_depend>roscpp</run_depend>
+  <run_depend>std_msgs</run_depend>
+
+  <export>
+
+  </export>
+</package>
