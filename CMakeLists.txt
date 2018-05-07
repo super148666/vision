@@ -4,7 +4,7 @@ project(vision)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ../)
 find_package(catkin REQUIRED COMPONENTS
-#		tf
+		tf
 #		genmsg
 #		actionlib_msgs
 #		actionlib
@@ -33,6 +33,7 @@ include_directories(
 catkin_package(
 		DEPENDS
 		roscpp
+		tf
 #		message_runtime
 #		std_msgs
 		)
@@ -58,5 +59,8 @@ target_link_libraries(sampler  ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_L
 
 add_executable(recorder src/recorder.cpp)
 target_link_libraries(recorder ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES})
+
+add_executable(working src/working.cpp)
+target_link_libraries(working ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES})
 
 
