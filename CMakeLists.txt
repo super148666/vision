@@ -14,10 +14,9 @@ find_package(catkin REQUIRED COMPONENTS
 #        visualization_msgs
         )
 find_package(OpenCV REQUIRED)
+set(BOOST_INCLUDEDIR /usr/include)
+set(BOOST_LIBRARYDIR /usr/lib/x86_64-linux-gnu)
 find_package(Boost REQUIRED COMPONENTS system thread)
-set(Boost_LIBRARY_DIRS /usr/lib/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu)
-set(BOOST_LIBRARYDIR /usr/lib/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu)
-
 set(PROJECT_INCLUDE_DIR include)
 
 set(PROJECT_SOURCE_DIR src)
@@ -28,6 +27,7 @@ include_directories(
         ${OpenCV_INCLUDE_DIR}
         ${PROJECT_INCLUDE_DIR}
         ${catkin_INCLUDE_DIRS}
+	/usr/include/
 )
 
 catkin_package(
