@@ -7,6 +7,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <tf/tf.h>
 #include <unistd.h>
@@ -22,13 +23,33 @@ using namespace cv;
 using namespace std;
 using namespace visualization_msgs;
 
+/*
 #define COLOR_THRESHOLD 10
-#define PROCESS_SIZE 24
-#define SCALE_X 0.4
-#define SCALE_Y 0.4
+#define PROCESS_SIZE 64
+#define SCALE_X 0.6
+#define SCALE_Y 0.6
 #define WINDOW_SIZE 64
 #define TARGET_H 42
 #define TARGET_V 251
+*/
+
+
+int color_threshold = 1;
+int process_size = 64;
+int window_stride = 16;
+double scale_x = 1.0;
+double scale_y = 1.0;
+double roi_upper = 0.5;
+double roi_lower = 1.0;
+int target_hue = 42;
+int target_value = 250;
+bool debug_on = true;
+bool webcam_on = false;
+int webcam_port = 1;
+std::string video_filename = "test.webm";
+std::string hog_filename = "hog64.yaml";
+std::string svm_filename = "model64.yaml";
+
 int UpperMargin = 0;
 int LowerMargin = 0;
 int LeftMargin = 0;
@@ -84,6 +105,11 @@ vector<float> get_svm_detector(const Ptr<SVM> &svm) {
     return weightVector;
 }
 
+void imshow_debug(const char* str, Mat input) {
+    if(debug_on)
+        imshow(str,input);
+}
+
 std::vector<cv::Rect>
 get_sliding_windows(Rect roi, vector<Point2f> &winStartPoints, int winWidth, int winHeight, int step) {
     std::vector<cv::Rect> rects;
@@ -113,10 +139,10 @@ void ConvertVectortoMatrix(vector<vector<float> > &dataHOG, Mat &dataMat) {
 
 Point2f GetColorCenter(Mat input, uint8_t target_h, uint8_t target_v, uint8_t threshold) {
     //cvtColor(input, input, COLOR_BGR2HSV_FULL);
-    vector<Mat> spl;
-    split(input, spl);
     vector<int> hist_rows;
     vector<int> hist_cols;
+    vector<Mat> spl;
+    split(input, spl);
     hist_rows.clear();
     hist_cols.clear();
     hist_rows.resize(input.rows, 0);
@@ -144,14 +170,16 @@ Point2f GetColorCenter(Mat input, uint8_t target_h, uint8_t target_v, uint8_t th
             spl[0].at<uint8_t>(i, j) = hue;
             spl[1].at<uint8_t>(i, j) = sat;
             spl[2].at<uint8_t>(i, j) = intensity;
+
             int diff1 = spl[0].at<uint8_t>(i, j) - target_h;
-            int diff2 = spl[2].at<uint8_t>(i, j) - target_v;
+            int diff2 = spl[2].at<uint8_t>(i, j);
+
             if (abs(diff1) < threshold) {
-                //if (sat > 0.95) {
+                if (diff2 > target_v) {
                     hist_rows[i]++;
                     hist_cols[j]++;
                     if (!match) match = true;
-                //}
+                }
             }
         }
     }
@@ -165,16 +193,16 @@ Point2f GetColorCenter(Mat input, uint8_t target_h, uint8_t target_v, uint8_t th
         int length = 0;
         int index_y = 0;
         for (int i = 0; i < hist_rows.size(); i++) {
-            if (hist_rows[i] > max) {
+            if (hist_rows[i] >= max) {
                 index_y = i;
                 max = hist_rows[i];
                 max_length = 1;
                 length = 1;
-            } else if (hist_rows[i] == max) {
-                length++;
-            } else {
-                if (length > max_length)
-                    max_length = length;
+            //} else if (hist_rows[i] == max) {
+            //    length++;
+            //} else {
+            //    if (length > max_length)
+            //        max_length = length;
             }
         }
         index_y += max_length / 2;
@@ -189,18 +217,18 @@ Point2f GetColorCenter(Mat input, uint8_t target_h, uint8_t target_v, uint8_t th
                 max = hist_cols[i];
                 max_length = 1;
                 length = 1;
-            } else if (hist_cols[i] == max) {
-                length++;
-            } else {
-                if (length > max_length) {
-                    max_length = length;
-                }
+//            } else if (hist_cols[i] == max) {
+//                length++;
+//            } else {
+//                if (length > max_length) {
+//                    max_length = length;
+//                }
             }
         }
         index_x += max_length / 2;
-        imshow("hue",spl[0]);
-        imshow("sat",spl[1]);
-        imshow("int",spl[2]);
+        imshow_debug("hue",spl[0]);
+        imshow_debug("sat",spl[1]);
+        imshow_debug("int",spl[2]);
         return Point2f(index_x, index_y);
     } else {
         return Point2f(-1, -1);
@@ -247,7 +275,7 @@ void EvaluateSVM(Mat &inputImg, Mat &outputImg, Mat &heatMap, vector<Rect> windo
             Mat tempp = inputImg(windows[i]).clone();
             //resize(tempp,tempp,Size(64,64));
 
-            Point2f center = GetColorCenter(tempp, TARGET_H, TARGET_V, COLOR_THRESHOLD);
+            Point2f center = GetColorCenter(tempp, target_hue, target_value, color_threshold);
             if (center.x >= 0) {
                 detectedConesCells.push_back(tempp);
                 /*
@@ -323,29 +351,64 @@ void PublishCone(vector<Point2f> coneInBaselink) {
 
     for (int i = 0; i < coneInBaselink.size(); i++) {
         Marker temp_marker = marker_template;
-        temp_marker.ns = "cones";
+        temp_marker.ns = "raw_cones";
         temp_marker.id = i;
         temp_marker.pose.position.x = coneInBaselink[i].x;
         temp_marker.pose.position.y = coneInBaselink[i].y;
+        double confidence;
+        if(coneInBaselink[i].x < 3.0) confidence = 1.0;
+        else if (coneInBaselink[i].x > 10.0) confidence = 0.1;
+        else confidence = (10.0 - coneInBaselink[i].x) * 0.9 / 7.0 + 0.1;
+        temp_marker.color.r = temp_marker.color.r * confidence;
+        temp_marker.color.b = temp_marker.color.b * confidence;
         cones_array.markers.push_back(temp_marker);
     }
     cones_pub.publish(cones_array);
 }
 
-void initGlobalVariables() {
-    //cap = VideoCapture(1);
-    cap = VideoCapture("./src/vision/test.webm");
+void initGlobalVariables(ros::NodeHandle nh) {
+
+    std::string pkg_path = ros::package::getPath("vision")+"/";
+
+    nh.getParam("color_threshold",color_threshold);
+    nh.getParam("process_size",process_size);
+    nh.getParam("window_stride",window_stride);
+    nh.getParam("roi_upper",roi_upper);
+    nh.getParam("roi_lower",roi_lower);
+    roi_lower = roi_lower - roi_upper;
+    if(roi_lower<=0||roi_upper<0) {
+        ROS_ERROR("wrong roi configure");
+        exit(-1);
+    }
+    nh.getParam("scale_x",scale_x);
+    nh.getParam("scale_y",scale_y);
+    nh.getParam("target_hue",target_hue);
+    nh.getParam("target_value",target_value);
+    nh.getParam("debug",debug_on);
+    nh.getParam("webcam_on",webcam_on);
+    nh.getParam("webcam_port",webcam_port);
+    nh.getParam("video_filename",video_filename);
+    nh.getParam("hog_filename",hog_filename);
+    nh.getParam("svm_filename",svm_filename);
+    video_filename.insert(0,pkg_path);
+    hog_filename.insert(0,pkg_path);
+    svm_filename.insert(0,pkg_path);
+
+    if(webcam_on)
+        cap = VideoCapture(webcam_port);
+    else
+        cap = VideoCapture(video_filename);
     if (!cap.read(img)) exit(1);
 
     VideoWidth = img.cols;
     VideoHeight = img.rows;
-    ProcessHeight = VideoHeight * SCALE_Y;
-    ProcessWidth = VideoWidth * SCALE_X;
+    ProcessHeight = VideoHeight * scale_y;
+    ProcessWidth = VideoWidth * scale_x;
 
-    LeftMargin = (VideoWidth * 4 / 10) * SCALE_X;
-    RightMargin = (VideoWidth - VideoWidth * 4 / 10) * SCALE_X;
-    UpperMargin = (VideoHeight * 4 / 10) * SCALE_Y;
-    LowerMargin = (VideoHeight - VideoHeight * 4 / 10) * SCALE_Y;
+    LeftMargin = (VideoWidth * 4 / 10) * scale_x;
+    RightMargin = (VideoWidth - VideoWidth * 4 / 10) * scale_x;
+    UpperMargin = (VideoHeight * 4 / 10) * scale_y;
+    LowerMargin = (VideoHeight - VideoHeight * 4 / 10) * scale_y;
     pts_src.clear();
     pts_src.push_back(Point2f(LeftMargin, UpperMargin));
     pts_src.push_back(Point2f(RightMargin, UpperMargin));
@@ -353,10 +416,10 @@ void initGlobalVariables() {
     pts_src.push_back(Point2f(LeftMargin, LowerMargin));
 
     pts_dst.clear();
-    pts_dst.push_back(Point2f((int) (235 * SCALE_X), (int) (320 * SCALE_Y)));
-    pts_dst.push_back(Point2f((int) (435 * SCALE_X), (int) (322 * SCALE_Y)));
-    pts_dst.push_back(Point2f((int) (448 * SCALE_X), (int) (345 * SCALE_Y)));
-    pts_dst.push_back(Point2f((int) (225 * SCALE_X), (int) (342 * SCALE_Y)));
+    pts_dst.push_back(Point2f((int) (235 * scale_x), (int) (320 * scale_y)));
+    pts_dst.push_back(Point2f((int) (435 * scale_x), (int) (322 * scale_y)));
+    pts_dst.push_back(Point2f((int) (448 * scale_x), (int) (345 * scale_y)));
+    pts_dst.push_back(Point2f((int) (225 * scale_x), (int) (342 * scale_y)));
 
     h = getPerspectiveTransform(pts_dst, pts_src);
 
@@ -366,14 +429,15 @@ void initGlobalVariables() {
         int frame_height = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
         VideoWriter video(o1,CV_FOURCC('M','J','P','G'),30, Size(frame_width,frame_height),true);
     */
+    if(debug_on) {
+        namedWindow("video", WINDOW_AUTOSIZE);
+        namedWindow("transformed", WINDOW_AUTOSIZE);
+    }
 
-    namedWindow("video", WINDOW_AUTOSIZE);
-    namedWindow("transformed", WINDOW_AUTOSIZE);
-
-    hog.load("./src/vision/hogLarge.yml");
-    roi = Rect(0, ProcessHeight / 20 * 8, ProcessWidth, ProcessHeight / 20 * 12);
-    windows = get_sliding_windows(roi, windowsStartPoints, PROCESS_SIZE, PROCESS_SIZE, 4);
-    svm = SVM::load("./src/vision/model24.yml");
+    hog.load(hog_filename);
+    roi = Rect(0, ProcessHeight * roi_upper, ProcessWidth, ProcessHeight * roi_lower);
+    windows = get_sliding_windows(roi, windowsStartPoints, process_size, process_size, window_stride);
+    svm = SVM::load(svm_filename);
 
     marker_template.action = visualization_msgs::Marker::ADD;
     marker_template.header.frame_id = "base_link";
@@ -385,7 +449,7 @@ void initGlobalVariables() {
     marker_template.scale.y = 0.2;
     marker_template.scale.z = 0.5;
     marker_template.color.a = 1.0;
-    marker_template.color.b = 0.647;
+    marker_template.color.b = 1.0;
     marker_template.color.r = 1.0;
     marker_template.color.g = 0.0;
 }
@@ -394,17 +458,17 @@ void initGlobalVariables() {
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "working");
-    ros::NodeHandle nh("~");
+    ros::NodeHandle nh;
     ros::Rate rate_(30);
-    cones_pub = nh.advertise<MarkerArray>("cones", 10);
+    cones_pub = nh.advertise<MarkerArray>("raw_cones", 10);
 
 
-    initGlobalVariables();
+    initGlobalVariables(nh);
 
     ROS_INFO("init done");
 
     char key = 0;
-    int count = 0;
+
     const Mat emptyHeatMap(ProcessHeight, ProcessWidth, CV_8UC1, Scalar(0));
     while (key != ' ' && cap.isOpened()) {
 
@@ -426,13 +490,14 @@ int main(int argc, char **argv) {
         vector<Point2f> coneToSAE;
         EvaluateConeLocation(conePoints, coneToSAE, h);
         PublishCone(coneToSAE);
-        Mat out;
+//        Mat out;
+
         //warpPerspective(img_show, out, h, img.size());
         //ROS_INFO("perspective transform done");
 
         //imshow("transformed",out);
         //moveWindow("transformed",100,100);
-        imshow("video", img_show);
+        imshow_debug("video", img_show);
 
 
         /*

@@ -1,0 +1,15 @@
+debug: true
+color_threshold: 10
+process_size: 64
+window_stride: 20
+roi_upper: 0.5
+roi_lower: 0.9
+scale_x: 0.7
+scale_y: 0.7
+target_hue: 42
+target_value: 100
+webcam_on: false
+webcam_port: 1
+video_filename: 'test.webm'
+hog_filename: 'hog64.yml'
+svm_filename: 'model64.yml'

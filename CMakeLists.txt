@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
 #        message_generation
 #        std_msgs
         roscpp
+		roslib
 #        visualization_msgs
         )
 find_package(OpenCV REQUIRED)
@@ -34,6 +35,7 @@ catkin_package(
 		DEPENDS
 		roscpp
 		tf
+		roslib
 #		message_runtime
 #		std_msgs
 		)

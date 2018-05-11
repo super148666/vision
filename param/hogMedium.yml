@@ -1,0 +1,15 @@
+%YAML:1.0
+---
+hogMedium: !!opencv-object-detector-hog
+   winSize: [ 12, 12 ]
+   blockSize: [ 8, 8 ]
+   blockStride: [ 4, 4 ]
+   cellSize: [ 4, 4 ]
+   nbins: 7
+   derivAperture: 1
+   winSigma: 2.
+   histogramNormType: 0
+   L2HysThreshold: 2.0000000000000001e-01
+   gammaCorrection: 0
+   nlevels: 64
+   signedGradient: 1

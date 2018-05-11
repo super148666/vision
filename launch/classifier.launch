@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="vision" type="classifier" name="classifier" output="screen">
+        <rosparam command="load" file="$(find vision)/param/configure.yaml" />
+    </node>
+
+
+</launch>
