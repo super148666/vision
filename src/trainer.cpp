@@ -19,6 +19,8 @@
    #include <opencv2/ml/ml.hpp>
 #endif
 
+#include <ros/ros.h>
+#include <ros/package.h>
 #include <iostream>
 #include <algorithm>    // std::random_shuffle
 #include <vector>       // std::vector
@@ -39,13 +41,19 @@ using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 
 
-string pathNameCones = "./src/vision/cones/";
-int numCones = 281;
-string pathNameNonCones = "./src/vision/non-cones/";
-int numNonCones = 1680;
+string hog_filename = "param/hog.yml";
+string svm_filename = "param/svm.yml";
+
+int num_of_dataset = 0;
+vector<string> pathNameCones;
+vector<int> numCones;
+vector<string> pathNameNonCones;
+vector<int> numNonCones;
 int SZ = 64;
 float affineFlags = WARP_INVERSE_MAP|INTER_LINEAR;
 float trainSetSize = 0.9;
+float Gamma = 1.0;
+float Ccoef = 5.0;
 
 Mat deskew(Mat& img){
 
@@ -60,28 +68,29 @@ Mat deskew(Mat& img){
 //
 //    return imgOut;
 
-
+    medianBlur(img,img,5);
     return img;
 }
 
-void loadDataLabel(string &pathNameCones, int numCones, string &pathNameNonCones, int numNonCones, vector<Mat> &trainCells, vector<Mat> &validateCells, vector<Mat> &testCells, vector<int> &trainLabels, vector<int> &validateLabels, vector<int> &testLabels){
+void loadDataLabel(vector<string> &pathNameCones, vector<int> numCones, vector<string> &pathNameNonCones, vector<int> numNonCones, vector<Mat> &trainCells, vector<Mat> &validateCells, vector<Mat> &testCells, vector<int> &trainLabels, vector<int> &validateLabels, vector<int> &testLabels){
 	/* Cones */
 	vector<Mat> allCones;
-	for(int i = 0; i < numCones; i++)
-	{
-		string imagePath;
-		if(i<10)
-		imagePath = pathNameCones + "image00" + boost::lexical_cast<string>(i) + ".png";
-		else if(i<100)
-		imagePath = pathNameCones + "image0" + boost::lexical_cast<string>(i) + ".png";
-		else
-		imagePath = pathNameCones + "image" + boost::lexical_cast<string>(i) + ".png";
-		Mat img = imread(imagePath, CV_LOAD_IMAGE_GRAYSCALE);
-		if(!img.empty()) {
-            resize(img,img,Size(SZ,SZ));
-			allCones.push_back(img);
-		}
-	}
+    for(int j = 0; j < num_of_dataset; j++) {
+        for (int i = 0; i < numCones[j]; i++) {
+            string imagePath;
+            //if (i < 10)
+            //    imagePath = pathNameCones[j] + "image00" + boost::lexical_cast<string>(i) + ".png";
+            //else if (i < 100)
+            //    imagePath = pathNameCones[j] + "image0" + boost::lexical_cast<string>(i) + ".png";
+            //else
+                imagePath = pathNameCones[j] + "image" + boost::lexical_cast<string>(i) + ".png";
+            Mat img = imread(imagePath, CV_LOAD_IMAGE_GRAYSCALE);
+            if (!img.empty()) {
+                resize(img, img, Size(SZ, SZ));
+                allCones.push_back(img);
+            }
+        }
+    }
 	// shuffle
 	// 80% into train set; 10% into validate set; 10% into test set
 	random_shuffle(allCones.begin(), allCones.end());
@@ -111,16 +120,17 @@ void loadDataLabel(string &pathNameCones, int numCones, string &pathNameNonCones
 	
 	/* NonCones */
 	vector<Mat> allNonCones;
-	for(int i = 0; i < numNonCones; i++)
-	{
-		string imagePath;
-		imagePath = pathNameNonCones + "image" + boost::lexical_cast<string>(i) + ".png";
-		Mat img = imread(imagePath, CV_LOAD_IMAGE_GRAYSCALE);
-		if(!img.empty()) {
-            resize(img,img,Size(SZ,SZ));
-			allNonCones.push_back(img);
-		}
-	}
+    for(int j = 0; j < num_of_dataset; j++) {
+        for (int i = 0; i < numNonCones[j]; i++) {
+            string imagePath;
+            imagePath = pathNameNonCones[j] + "image" + boost::lexical_cast<string>(i) + ".png";
+            Mat img = imread(imagePath, CV_LOAD_IMAGE_GRAYSCALE);
+            if (!img.empty()) {
+                resize(img, img, Size(SZ, SZ));
+                allNonCones.push_back(img);
+            }
+        }
+    }
 	// shuffle
 	// 80% into train set; 10% into validate set; 10% into test set
 	random_shuffle(allNonCones.begin(), allNonCones.end());
@@ -187,7 +197,7 @@ HOGDescriptor hog(
         Size(32,32), //blocksize
         Size(16,16), //blockStride,
         Size(16,16), //cellSize,
-                 9, //nbins,
+                 10, //nbins,
                   1, //derivAper,
                  -1, //winSigma,
                   0, //histogramNormType,
@@ -275,25 +285,19 @@ void SVMtrain(Mat &trainMat,vector<int> &trainLabels, Mat &testResponse,Mat &tes
 #endif
 #ifdef USE_OPENCV_3
     Ptr<SVM> svm = SVM::create();
-    svm->setGamma(1); //0.50625
-    svm->setC(1);
+    svm->setGamma(Gamma); //0.50625
+    svm->setC(Ccoef);
     svm->setKernel(SVM::LINEAR);
     svm->setType(SVM::C_SVC);
     Ptr<TrainData> td = TrainData::create(trainMat, ROW_SAMPLE, trainLabels);
     svm->train(td);
-    svm->save("./src/vision/model64.yml");
-    hog.save("./src/vision/hog64.yml");
+    svm->save(svm_filename);
+    hog.save(hog_filename);
     svm->predict(testMat, testResponse);
     //getSVMParams(svm);
 #endif
 }
 
-void SVMtest(Mat &testResponse, Mat &testMat)
-{
-    Ptr<SVM> svm = SVM::load("./src/vision/model64.yml");
-    svm->predict(testMat, testResponse);
-    getSVMParams(svm);
-}
 
 void SVMevaluate(Mat &testResponse,float &count, float &accuracy,vector<int> &testLabels){
 
@@ -307,7 +311,77 @@ void SVMevaluate(Mat &testResponse,float &count, float &accuracy,vector<int> &te
     accuracy = (count/testResponse.rows)*100;
 }
 
-int main(){
+void InitGlobalVariables(ros::NodeHandle nh) {
+    std::string pkg_path = ros::package::getPath("vision")+"/";
+
+    nh.getParam("num_of_datasets",num_of_dataset);
+    numNonCones.reserve(num_of_dataset);
+    numCones.reserve(num_of_dataset);
+    pathNameNonCones.reserve(num_of_dataset);
+    pathNameCones.reserve(num_of_dataset);
+    string str_temp;
+    int int_temp=0;
+    nh.getParam("/first/num_of_cones",int_temp);
+    numCones.push_back(int_temp);
+    int_temp = 0;
+    nh.getParam("/first/num_of_noncones",int_temp);
+    numNonCones.push_back(int_temp);
+    nh.getParam("/first/path_of_cones",str_temp);
+    pathNameCones.push_back(str_temp);
+    str_temp.clear();
+    nh.getParam("/first/path_of_noncones",str_temp);
+    pathNameNonCones.push_back(str_temp);
+    if(num_of_dataset>1) {
+        int_temp=0;
+        nh.getParam("/second/num_of_cones",int_temp);
+        numCones.push_back(int_temp);
+        int_temp = 0;
+        nh.getParam("/second/num_of_noncones",int_temp);
+        numNonCones.push_back(int_temp);
+        nh.getParam("/second/path_of_cones",str_temp);
+        pathNameCones.push_back(str_temp);
+        str_temp.clear();
+        nh.getParam("/second/path_of_noncones",str_temp);
+        pathNameNonCones.push_back(str_temp);
+    }
+    nh.getParam("sample_size",SZ);
+    nh.getParam("training_ratio",trainSetSize);
+    int temp=SZ;
+    nh.getParam("window_size",temp);
+    hog.winSize=Size(temp,temp);
+    temp=temp/2;
+    nh.getParam("block_size",temp);
+    hog.blockSize=Size(temp,temp);
+    temp=temp/2;
+    nh.getParam("block_stride",temp);
+    hog.blockStride=Size(temp,temp);
+    nh.getParam("cell_size",temp);
+    hog.cellSize=Size(temp,temp);
+    nh.getParam("nbins",hog.nbins);
+    nh.getParam("nlevels",hog.nlevels);
+    nh.getParam("gamma",Gamma);
+    nh.getParam("c_coefficient",Ccoef);
+    nh.getParam("hog_filename",hog_filename);
+    nh.getParam("svm_filename",svm_filename);
+
+
+    for(int i = 0; i < num_of_dataset; i ++) {
+        pathNameCones[i].insert(0, pkg_path);
+        pathNameNonCones[i].insert(0, pkg_path);
+    }
+    hog_filename.insert(0,pkg_path);
+    svm_filename.insert(0,pkg_path);
+
+    ROS_INFO("configure done");
+
+
+}
+
+int main(int argc,char** argv){
+    ros::init(argc,argv,"sampler");
+    ros::NodeHandle nh;
+    InitGlobalVariables(nh);
+
 
     time_point<std::chrono::steady_clock> start;
     time_point<std::chrono::steady_clock> end;
@@ -323,6 +397,7 @@ int main(){
     loadDataLabel(pathNameCones,numCones,pathNameNonCones,numNonCones,trainCells,validateCells,testCells,trainLabels,validateLabels,testLabels);
     end = std::chrono::steady_clock::now();
     diff = duration_cast<milliseconds>(end-start);
+    cout<<"traincell: "<<trainCells.size()<<" validatecell: "<<validateCells.size()<<" testcell: "<<testCells.size()<<endl;
     cout<<"loadDataLabel:"<<diff.count()<<" ms"<<endl;
 
     vector<Mat> deskewedTrainCells;

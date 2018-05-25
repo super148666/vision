@@ -8,6 +8,8 @@
 #include "opencv2/objdetect.hpp"
 #include <opencv2/ml.hpp>
 
+#include <ros/ros.h>
+#include <ros/package.h>
 
 #include <iostream>
 #include <algorithm>    // std::random_shuffle
@@ -24,10 +26,16 @@ int numCones = 0;
 int numNonCones = 0;
 string pathCones = "./cones/";
 string pathNonCones = "./non-cones/";
+string video_filename = ".";
+
 int sampleSize = 64;
 int windowSize = 64;
+double scale_x = 0.5;
+double scale_y = 0.5;
 int VideoWidth = 160;
 int VideoHeight = 120;
+int ProcessWidth = 160;
+int ProcessHeight = 120;
 
 Mat img,imgshow,imgmouse,sample;
 
@@ -64,8 +72,10 @@ void CollectSamples()
         {
             newSample=false;
             filename="not saved";
-            cout<<"current index: "<<index<<" | "<<filename<<endl;
-            cout<<"w:cone | s:non-cone | e:redo | space:next frame"<<endl;
+            ROS_INFO_STREAM("current index: "<<index<<" | "<<filename);
+            ROS_INFO_STREAM("a:- | d:+");
+            ROS_INFO_STREAM("w:cone | s:non-cone | e:redo | space:next frame");
+
         }
         switch(key){
             case 'a':
@@ -75,7 +85,8 @@ void CollectSamples()
 
             case 'd':
                 windowSize+=2;
-                if(windowSize>VideoHeight/2) windowSize=VideoHeight/2;
+                if(windowSize>ProcessHeight) windowSize=ProcessHeight;
+                if(windowSize>ProcessWidth) windowSize=ProcessWidth;
                 break;
 
             case 'w':   //cones
@@ -100,7 +111,7 @@ void CollectSamples()
                         imwrite(filename, sample);
                     }
                 }
-                cout<<"image "<<index<<" has been saved at "<<filename<<endl;
+                ROS_INFO_STREAM("image "<<index<<" has been saved at "<<filename);
                 index++;
                 break;
 
@@ -126,13 +137,13 @@ void CollectSamples()
                         imwrite(filename, sample);
                     }
                 }
-                cout<<"image "<<index<<" has been saved at "<<filename<<endl;
+                ROS_INFO_STREAM("image "<<index<<" has been saved at "<<filename);
                 index++;
                 break;
 
             case 'e':   //delete
                 if(filename=="not saved") {
-                    cout<<"image "<<index<<" was not saved"<<endl;
+                    ROS_INFO_STREAM("image "<<index<<" was not saved");
                 }
                 else {
                     string command = "rm -rf "+filename;
@@ -165,8 +176,8 @@ void MouseCB(int event, int x, int y, int flags, void* ptr)
         int Py = y - windowSize/2;
         if(Px<0) Px=0;
         if(Py<0) Py=0;
-        if(Px>VideoHeight-windowSize) Px = VideoHeight-windowSize;
-        if(Py>VideoWidth-windowSize) Py = VideoWidth-windowSize;
+        if(Px>ProcessHeight-windowSize) Px = ProcessHeight-windowSize;
+        if(Py>ProcessWidth-windowSize) Py = ProcessWidth-windowSize;
         imgshow=img.clone();
         Rect window(Px,Py,windowSize,windowSize);
         rectangle(imgshow,window,Scalar(0,0,200));
@@ -185,29 +196,67 @@ void MouseCB(int event, int x, int y, int flags, void* ptr)
         int Py = y - windowSize/2;
         if(Px<0) Px=0;
         if(Py<0) Py=0;
-        if(Px>VideoHeight-windowSize) Px = VideoHeight-windowSize;
-        if(Py>VideoWidth-windowSize) Py = VideoWidth-windowSize;
+        if(Px>ProcessHeight-windowSize) Px = ProcessHeight-windowSize;
+        if(Py>ProcessWidth-windowSize) Py = ProcessWidth-windowSize;
         imgmouse=imgshow.clone();
         Rect window(Px,Py,windowSize,windowSize);
         rectangle(imgmouse,window,Scalar(200,0,0));
         imshow("img",imgmouse);
     }
+    if(event==EVENT_RBUTTONUP)
+    {
+        exit(0);
+    }
+}
+
+void InitGlobalVariables(ros::NodeHandle nh) {
+    std::string pkg_path = ros::package::getPath("vision")+"/";
+
+    nh.getParam("num_of_cones",numCones);
+    nh.getParam("num_of_noncones",numNonCones);
+    nh.getParam("path_of_cones",pathCones);
+    nh.getParam("path_of_noncones",pathNonCones);
+    nh.getParam("scale_x",scale_x);
+    nh.getParam("scale_y",scale_y);
+    nh.getParam("video_filename",video_filename);
+    nh.getParam("sample_size",sampleSize);
+
+    windowSize = sampleSize;
+
+    video_filename.insert(0,pkg_path);
+    pathCones.insert(0,pkg_path);
+    pathNonCones.insert(0,pkg_path);
+
+    ROS_INFO("configure done");
+
+
 }
 
 int main(int argc, char** argv)
 {
-    auto cap = VideoCapture("./test.webm");
+    ros::init(argc,argv,"sampler");
+    ros::NodeHandle nh;
+    InitGlobalVariables(nh);
+    auto cap = VideoCapture(video_filename);
     int count = 0;
     namedWindow("img",WINDOW_AUTOSIZE|WINDOW_GUI_NORMAL);
     setMouseCallback("img",MouseCB);
+    bool first = true;
     while(cap.isOpened()) {
         system("clear");
-        cout<<"frame no:"<< ++count << endl;
+        ROS_INFO_STREAM("frame no:"<< ++count);
+        ROS_INFO_STREAM("a:- | d:+");
+        ROS_INFO_STREAM("w:cone | s:non-cone | e:redo | space:next frame");
         std::vector<cv::Point> Locations;
         bool success = cap.read(img);
         if(!success) break;
-        VideoHeight=img.cols;
-        VideoWidth=img.rows;
+        if(first) {
+            VideoHeight = img.cols;
+            VideoWidth = img.rows;
+            ProcessHeight = VideoHeight*scale_y;
+            ProcessWidth = VideoWidth*scale_x;
+        }
+        resize(img,img,Size(ProcessHeight,ProcessWidth));
         imgshow=img.clone();
         imshow("img",imgshow);
         waitKey(1);

@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
 #        std_msgs
         roscpp
 		roslib
+		cv_bridge
 #        visualization_msgs
         )
 find_package(OpenCV REQUIRED)
@@ -36,8 +37,9 @@ catkin_package(
 		roscpp
 		tf
 		roslib
+		cv_bridge
 #		message_runtime
-#		std_msgs
+		std_msgs
 		)
 
 set(CAM_CAL_SRC src/camCalExample.cpp src/camCal.cpp include/camCal.h)

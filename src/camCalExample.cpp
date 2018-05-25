@@ -47,6 +47,8 @@ int main(int argv, char **argc) {
 
         imshow("Webcam", drawToFrame);
         char cKey = waitKey(1000 / 60);
+        system("clear");
+        cout<<" "<<savedImages.size()<<" have been collected!\n";
 
         switch (cKey) {
             case 13:    // enter
@@ -71,7 +73,6 @@ int main(int argv, char **argc) {
                     frame.copyTo(temp);
                     savedImages.push_back(temp);
                 }
-                cout<<" "<<savedImages.size()<<" have been collected!\n";
                 break;
 
             default:

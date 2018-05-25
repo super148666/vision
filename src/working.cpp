@@ -8,7 +8,9 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <ros/ros.h>
 #include <ros/package.h>
+#include <cv_bridge/cv_bridge.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <sensor_msgs/Image.h>
 #include <tf/tf.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -35,6 +37,7 @@ using namespace visualization_msgs;
 
 
 int color_threshold = 1;
+int minimum_pixel = 0;
 int process_size = 64;
 int window_stride = 16;
 double scale_x = 1.0;
@@ -43,6 +46,8 @@ double roi_upper = 0.5;
 double roi_lower = 1.0;
 int target_hue = 42;
 int target_value = 250;
+bool subscribe_from_topic = false;
+std::string topic_name;
 bool debug_on = true;
 bool webcam_on = false;
 int webcam_port = 1;
@@ -70,12 +75,13 @@ vector<Point2f> windowsStartPoints;
 Ptr<SVM> svm;
 
 ros::Publisher cones_pub;
+ros::Subscriber image_sub;
 MarkerArray cones_array;
 Marker marker_template;
+cv_bridge::CvImagePtr cv_ptr;
 
-struct passwd *pw = getpwuid(getuid());
 
-const char *homedir = pw->pw_dir;
+
 
 HOGDescriptor hog(
         Size(8, 8), //winSize
@@ -148,6 +154,7 @@ Point2f GetColorCenter(Mat input, uint8_t target_h, uint8_t target_v, uint8_t th
     hist_rows.resize(input.rows, 0);
     hist_cols.resize(input.cols, 0);
     bool match = false;
+    int valid_count = 0;
     for (int i = 0; i < input.rows; i++) {
         for (int j = 0; j < input.cols; j++) {
 
@@ -178,6 +185,7 @@ Point2f GetColorCenter(Mat input, uint8_t target_h, uint8_t target_v, uint8_t th
                 if (diff2 > target_v) {
                     hist_rows[i]++;
                     hist_cols[j]++;
+                    valid_count++;
                     if (!match) match = true;
                 }
             }
@@ -185,7 +193,7 @@ Point2f GetColorCenter(Mat input, uint8_t target_h, uint8_t target_v, uint8_t th
     }
 
 
-
+    if (valid_count<minimum_pixel) return Point2f(-1, -1);
 
     if (match) {
         int max = 0;
@@ -258,6 +266,7 @@ void EvaluateSVM(Mat &inputImg, Mat &outputImg, Mat &heatMap, vector<Rect> windo
     }
     //ROS_INFO_STREAM("compute hog vector"<<dataHOG.size()<<" "<<dataHOG[0].size());
 
+    /*
     Mat dataMat(dataHOG.size(), dataHOG[0].size(), CV_32FC1);
     ConvertVectortoMatrix(dataHOG, dataMat);
     //ROS_INFO("convert hog vector into matrix");
@@ -265,16 +274,31 @@ void EvaluateSVM(Mat &inputImg, Mat &outputImg, Mat &heatMap, vector<Rect> windo
     Mat response;
     svm->predict(dataMat, response);
     //ROS_INFO("svm predict");
+    */
+    vector<float> svm_results;
+    for(int i=0;i<dataHOG.size();i++) {
+        Mat dataMat(1, dataHOG[0].size(), CV_32FC1);
+        vector<vector<float>> thisDataHOG;
+        thisDataHOG.clear();
+        thisDataHOG.push_back(dataHOG[i]);
+        ConvertVectortoMatrix(thisDataHOG, dataMat);
+        //ROS_INFO("convert hog vector into matrix");
 
+        Mat response;
+        svm->predict(dataMat, response);
+        svm_results.push_back(response.at<float>(0,0));
+        //ROS_INFO_STREAM(svm_results.back());
+    }
     conePoints.clear();
     for (int i = 0; i < windows.size(); i++) {
-        if (response.at<float>(i, 0)) {
+        if (svm_results[i]) {
 
             Mat temp(outputImg.rows, outputImg.cols, CV_8UC1, Scalar(0));
 
             Mat tempp = inputImg(windows[i]).clone();
             //resize(tempp,tempp,Size(64,64));
-
+            rectangle(outputImg, windows[i], Scalar(10, 10, 255));
+            medianBlur ( tempp, tempp, 5 );
             Point2f center = GetColorCenter(tempp, target_hue, target_value, color_threshold);
             if (center.x >= 0) {
                 detectedConesCells.push_back(tempp);
@@ -291,7 +315,7 @@ void EvaluateSVM(Mat &inputImg, Mat &outputImg, Mat &heatMap, vector<Rect> windo
                 center.y += winStartPoints[i].y;
                 rectangle(temp, windows[i], Scalar(1), -1);
                 heatMap += temp;
-                rectangle(outputImg, windows[i], Scalar(10, 10, 255));
+                rectangle(outputImg, windows[i], Scalar(10, 255, 10));
                 circle(outputImg, center, 2, Scalar(10, 10, 255));
                 conePoints.push_back(center);
             }
@@ -366,6 +390,18 @@ void PublishCone(vector<Point2f> coneInBaselink) {
     cones_pub.publish(cones_array);
 }
 
+void ImageReceived(const sensor_msgs::ImageConstPtr msg) {
+    try
+    {
+        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+        return;
+    }
+}
+
 void initGlobalVariables(ros::NodeHandle nh) {
 
     std::string pkg_path = ros::package::getPath("vision")+"/";
@@ -390,6 +426,9 @@ void initGlobalVariables(ros::NodeHandle nh) {
     nh.getParam("video_filename",video_filename);
     nh.getParam("hog_filename",hog_filename);
     nh.getParam("svm_filename",svm_filename);
+    nh.getParam("minimum_pixel",minimum_pixel);
+    nh.getParam("subscribe_from_topic",subscribe_from_topic);
+    nh.getParam("topic_name",topic_name);
     video_filename.insert(0,pkg_path);
     hog_filename.insert(0,pkg_path);
     svm_filename.insert(0,pkg_path);
@@ -435,7 +474,7 @@ void initGlobalVariables(ros::NodeHandle nh) {
     }
 
     hog.load(hog_filename);
-    roi = Rect(0, ProcessHeight * roi_upper, ProcessWidth, ProcessHeight * roi_lower);
+    roi = Rect(0, (int)(ProcessHeight * roi_upper), ProcessWidth, (int)(ProcessHeight * roi_lower));
     windows = get_sliding_windows(roi, windowsStartPoints, process_size, process_size, window_stride);
     svm = SVM::load(svm_filename);
 
@@ -452,6 +491,10 @@ void initGlobalVariables(ros::NodeHandle nh) {
     marker_template.color.b = 1.0;
     marker_template.color.r = 1.0;
     marker_template.color.g = 0.0;
+
+    if(subscribe_from_topic) {
+        image_sub = nh.subscribe(topic_name,1,&ImageReceived);
+    }
 }
 
 
@@ -471,8 +514,9 @@ int main(int argc, char **argv) {
 
     const Mat emptyHeatMap(ProcessHeight, ProcessWidth, CV_8UC1, Scalar(0));
     while (key != ' ' && cap.isOpened()) {
-
-        if (!cap.read(img)) exit(1);
+        if(subscribe_from_topic) {
+            img = cv_ptr->image;
+        } else if (!cap.read(img)) exit(1);
         //ROS_INFO_STREAM("frame no."<<count++);
 
         std::vector<cv::Point> Locations;
@@ -485,6 +529,7 @@ int main(int argc, char **argv) {
         Mat heatMap = emptyHeatMap.clone();
         //ROS_INFO("preprocessing done");
         vector<Point2f> conePoints;
+        medianBlur(img_process,img_process,5);
         EvaluateSVM(img_process, img_show, heatMap, windows, windowsStartPoints, conePoints, svm, hog);
         //ROS_INFO("SVM evaluation done");
         vector<Point2f> coneToSAE;
