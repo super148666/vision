@@ -1,0 +1,5 @@
+<launch>
+    <rosparam command="load" file="$(find vision)/param/sampling.yaml" />
+
+    <node name="sampler" pkg="vision" type="sampler" output="screen"/>
+</launch>

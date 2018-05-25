@@ -1,0 +1,37 @@
+num_of_datasets: 2
+
+first:
+# num_of_cones: 281
+# num_of_cones: 0
+# num_of_noncones: 1680
+# path_of_cones: 'training_data/webcam/cones/'
+# path_of_noncones: 'training_data/webcam/non-cones/'
+#
+#second:
+ num_of_cones: 0
+ num_of_noncones: 1153
+ path_of_cones: 'training_data/basler/cones/'
+ path_of_noncones: 'training_data/basler/non-cones/'
+
+second:
+ num_of_cones: 786
+ num_of_noncones: 3189
+ path_of_cones: 'training_data/basler32/1/'
+ path_of_noncones: 'training_data/basler32/0/'
+
+sample_size: 32
+training_ratio: 1.0
+#HOG
+window_size: 32
+block_size: 16
+block_stride: 8
+cell_size: 8
+nbins: 22
+nlevels: 64
+hog_filename: 'param/hog32.yml'
+#SVM
+gamma: 0.5
+c_coefficient: 0.05
+#gamma: 5
+#c_coefficient: 0.5
+svm_filename: 'param/svm32.yml'

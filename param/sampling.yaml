@@ -1,0 +1,8 @@
+num_of_cones: 786
+num_of_noncones: 3189
+path_of_cones: 'training_data/basler32/1/'
+path_of_noncones: 'training_data/basler32/0/'
+scale_x: 0.4
+scale_y: 0.4
+video_filename: 'lol.avi'
+sample_size: 32
