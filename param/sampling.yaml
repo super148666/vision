@@ -4,5 +4,6 @@ path_of_cones: 'training_data/basler32/1/'
 path_of_noncones: 'training_data/basler32/0/'
 scale_x: 0.4
 scale_y: 0.4
+absolute_path: true
 video_filename: 'lol.avi'
 sample_size: 32

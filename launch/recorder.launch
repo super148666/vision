@@ -1,0 +1,5 @@
+<launch>
+    <rosparam command="load" file="$(find vision)/param/recording.yaml" />
+
+    <node name="recorder" pkg="vision" type="recorder" output="screen"/>
+</launch>

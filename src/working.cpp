@@ -429,15 +429,28 @@ void initGlobalVariables(ros::NodeHandle nh) {
     nh.getParam("minimum_pixel",minimum_pixel);
     nh.getParam("subscribe_from_topic",subscribe_from_topic);
     nh.getParam("topic_name",topic_name);
+    std::cout<<topic_name<<subscribe_from_topic<<std::endl;
     video_filename.insert(0,pkg_path);
     hog_filename.insert(0,pkg_path);
     svm_filename.insert(0,pkg_path);
 
-    if(webcam_on)
-        cap = VideoCapture(webcam_port);
-    else
-        cap = VideoCapture(video_filename);
-    if (!cap.read(img)) exit(1);
+    ROS_INFO("getparam done");
+    if(!subscribe_from_topic) {
+        if(webcam_on)
+            cap = VideoCapture(webcam_port);
+        else
+            cap = VideoCapture(video_filename);
+        if (!cap.read(img)) exit(1);
+    }else {
+        image_sub = nh.subscribe(topic_name,1,&ImageReceived);
+        while(!cv_ptr) {
+            ros::spinOnce();
+        }
+        img=cv_ptr->image.clone();
+        
+        imshow("img",img);
+    }
+    ROS_INFO("image source done");
 
     VideoWidth = img.cols;
     VideoHeight = img.rows;
@@ -492,9 +505,6 @@ void initGlobalVariables(ros::NodeHandle nh) {
     marker_template.color.r = 1.0;
     marker_template.color.g = 0.0;
 
-    if(subscribe_from_topic) {
-        image_sub = nh.subscribe(topic_name,1,&ImageReceived);
-    }
 }
 
 
@@ -502,7 +512,7 @@ void initGlobalVariables(ros::NodeHandle nh) {
 int main(int argc, char **argv) {
     ros::init(argc, argv, "working");
     ros::NodeHandle nh;
-    ros::Rate rate_(30);
+    ros::Rate rate_(15);
     cones_pub = nh.advertise<MarkerArray>("raw_cones", 10);
 
 
@@ -511,13 +521,16 @@ int main(int argc, char **argv) {
     ROS_INFO("init done");
 
     char key = 0;
-
+    int count = 0;
     const Mat emptyHeatMap(ProcessHeight, ProcessWidth, CV_8UC1, Scalar(0));
-    while (key != ' ' && cap.isOpened()) {
+    while (key != ' ') {
+        
         if(subscribe_from_topic) {
-            img = cv_ptr->image;
+            ros::spinOnce();
+            if(cv_ptr) img = cv_ptr->image.clone();
+            else continue;
         } else if (!cap.read(img)) exit(1);
-        //ROS_INFO_STREAM("frame no."<<count++);
+        ROS_INFO_STREAM("frame no."<<(count++));
 
         std::vector<cv::Point> Locations;
 
@@ -527,11 +540,11 @@ int main(int argc, char **argv) {
         resize(img_, img_process, Size(ProcessWidth, ProcessHeight));
         img_show = img_process.clone();
         Mat heatMap = emptyHeatMap.clone();
-        //ROS_INFO("preprocessing done");
+        ROS_INFO("preprocessing done");
         vector<Point2f> conePoints;
         medianBlur(img_process,img_process,5);
         EvaluateSVM(img_process, img_show, heatMap, windows, windowsStartPoints, conePoints, svm, hog);
-        //ROS_INFO("SVM evaluation done");
+        ROS_INFO("SVM evaluation done");
         vector<Point2f> coneToSAE;
         EvaluateConeLocation(conePoints, coneToSAE, h);
         PublishCone(coneToSAE);
@@ -564,7 +577,7 @@ int main(int argc, char **argv) {
         */
 
         key = waitKey(1);
-        //rate_.sleep();
+        rate_.sleep();
     }
     return 0;
 

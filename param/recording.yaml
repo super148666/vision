@@ -1,0 +1,6 @@
+subscribe_from_topic: true
+topic_name: '/camera'
+webcam_on: false
+webcam_port: 1
+absolute_path: true
+video_path: '/media/ssd/video_recordings/video1.avi'

@@ -222,10 +222,13 @@ void InitGlobalVariables(ros::NodeHandle nh) {
     nh.getParam("sample_size",sampleSize);
 
     windowSize = sampleSize;
-
-    video_filename.insert(0,pkg_path);
-    pathCones.insert(0,pkg_path);
-    pathNonCones.insert(0,pkg_path);
+    bool absolute_path = true;
+    nh.getParam("absolute_path",absolute_path);
+    if(!absolute_path) {
+        video_filename.insert(0,pkg_path);
+        pathCones.insert(0,pkg_path);
+        pathNonCones.insert(0,pkg_path);
+    }
 
     ROS_INFO("configure done");
 
