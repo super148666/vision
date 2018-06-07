@@ -18,9 +18,12 @@
 #include <chrono>       // std::chrono::system_clock
 #include <boost/lexical_cast.hpp>
 
-using namespace cv::ml;
+
 using namespace cv;
 using namespace std;
+
+#define MODE_SINGLE 0
+#define MODE_BATCH 1
 
 int numCones = 0;
 int numNonCones = 0;
@@ -36,142 +39,212 @@ int VideoWidth = 160;
 int VideoHeight = 120;
 int ProcessWidth = 160;
 int ProcessHeight = 120;
+int win_stride = 8;
 
 Mat img,imgshow,imgmouse,sample;
+vector<Mat> samples;
+vector<string> filenames;
+
+string default_filename = "not saved";
 
 bool newSample = false;
 
 vector<string> emptyCones;
 vector<string> emptyNonCones;
 
+int frame_no = 0;
 
-std::vector<cv::Rect> get_sliding_windows(Rect roi,int winWidth,int winHeight, int step)
-{
-    std::vector<cv::Rect> rects;
+bool samplesLock = false;
 
-    for(int i=roi.y;i<(roi.y+roi.height);i+=step)
-    {
-        if((i+winHeight)>(roi.y+roi.height)){break;}
-        for(int j=roi.x;j< (roi.x+roi.width);j+=step)
-        {
-            if((j+winWidth)>(roi.x+roi.width)){break;}
-            cv::Rect rect(j,i,winWidth,winHeight);
-            rects.push_back(rect);
-        }
-    }
-    return rects;
+// void LockSamplesLock()
+// {
+//     while(samplesLock) {
+//         waitKey(10);
+//     }
+//     samplesLock = true;
+// }
+
+void UnlockSamplesLock() {
+    samplesLock = false;
 }
 
 void CollectSamples()
 {
+    
     int index = 0;
-    string filename = "not saved";
-    char key = waitKey(10);
+    char key = 0;
+    int batch_size = 0;
+    
     while(1) {
+        
+        // update terminal
+        // LockSamplesLock();
         if(newSample==true)
         {
+            // system("clear");
+            batch_size = samples.size();
+            
+            // ROS_INFO_STREAM("vector size of filenames: "<<filenames.size());
+            
             newSample=false;
-            filename="not saved";
-            ROS_INFO_STREAM("current index: "<<index<<" | "<<filename);
-            ROS_INFO_STREAM("a:- | d:+");
-            ROS_INFO_STREAM("w:cone | s:non-cone | e:redo | space:next frame");
 
         }
-        switch(key){
-            case 'a':
-                windowSize-=2;
-                if(windowSize<2) windowSize=2;
-                break;
 
-            case 'd':
-                windowSize+=2;
-                if(windowSize>ProcessHeight) windowSize=ProcessHeight;
-                if(windowSize>ProcessWidth) windowSize=ProcessWidth;
-                break;
+        switch(key){
 
             case 'w':   //cones
-                if(filename=="not saved") {
-                    if(emptyCones.empty())
-                        filename = pathCones + "image" + boost::lexical_cast<string>(++numCones) + ".png";
-                    else {
-                        filename=emptyCones.front();
-                        emptyCones.erase(emptyCones.begin());
-                    }
-                    imwrite(filename, sample);
-                }
-                else {
-                    if(filename.find("non-")!=string::npos) {
-                        emptyNonCones.push_back(filename);
-                        if(emptyCones.empty())
-                            filename = pathCones + "image" + boost::lexical_cast<string>(++numCones) + ".png";
+                if(filenames.front()==default_filename) {
+                    for(int i = 0; i < batch_size; i++) {
+                        if(emptyCones.empty()) {
+                            filenames[i] = pathCones + "image" + boost::lexical_cast<string>(++numCones) + ".png";
+                        }
                         else {
-                            filename=emptyCones.front();
+                            filenames[i]=emptyCones.front();
                             emptyCones.erase(emptyCones.begin());
                         }
-                        imwrite(filename, sample);
+                        imwrite(filenames[i], samples[i]);
                     }
                 }
-                ROS_INFO_STREAM("image "<<index<<" has been saved at "<<filename);
+                else if(filenames.front().find(pathNonCones)!=string::npos) {
+                    for(int i = 0; i < batch_size; i++) {
+                        emptyNonCones.push_back(filenames[i]);
+                        if(emptyCones.empty()) {
+                            filenames[i] = pathCones + "image" + boost::lexical_cast<string>(++numCones) + ".png";
+                        }
+                        else {
+                            filenames[i]=emptyCones.front();
+                            emptyCones.erase(emptyCones.begin());
+                        }
+                        imwrite(filenames[i], samples[i]);
+                    }
+                        
+                }
+                ROS_INFO_STREAM("image "<<index<<" has been saved at "<<filenames.front());
                 index++;
                 break;
 
             case 's':   //non-cones
-                if(filename=="not saved") {
-                    if(emptyNonCones.empty())
-                        filename = pathNonCones+"image" + boost::lexical_cast<string>(++numNonCones) + ".png";
-                    else {
-                        filename=emptyNonCones.front();
-                        emptyNonCones.erase(emptyNonCones.begin());
-                    }
-                    imwrite(filename, sample);
-                }
-                else {
-                    if(filename.find("non-")==string::npos) {
-                        emptyCones.push_back(filename);
+                if(filenames.front()==default_filename) {
+                    for(int i = 0; i < batch_size; i++) {
                         if(emptyNonCones.empty())
-                            filename = pathNonCones+"image" + boost::lexical_cast<string>(++numNonCones) + ".png";
+                            filenames[i] = pathNonCones+"image" + boost::lexical_cast<string>(++numNonCones) + ".png";
                         else {
-                            filename=emptyNonCones.front();
+                            filenames[i]=emptyNonCones.front();
                             emptyNonCones.erase(emptyNonCones.begin());
                         }
-                        imwrite(filename, sample);
+                        imwrite(filenames[i], samples[i]);
                     }
                 }
-                ROS_INFO_STREAM("image "<<index<<" has been saved at "<<filename);
+                else if(filenames.front().find(pathCones)!=string::npos) {
+                    for(int i = 0; i < batch_size; i++) {
+                        emptyCones.push_back(filenames[i]);
+                        if(emptyNonCones.empty())
+                            filenames[i] = pathNonCones+"image" + boost::lexical_cast<string>(++numNonCones) + ".png";
+                        else {
+                            filenames[i]=emptyNonCones.front();
+                            emptyNonCones.erase(emptyNonCones.begin());
+                        }
+                        imwrite(filenames[i], samples[i]);
+                    }
+                }
+                ROS_INFO_STREAM("image "<<index<<" has been saved at "<<filenames.front());
                 index++;
                 break;
 
             case 'e':   //delete
-                if(filename=="not saved") {
+                if(filenames.front()==default_filename) {
                     ROS_INFO_STREAM("image "<<index<<" was not saved");
                 }
                 else {
-                    string command = "rm -rf "+filename;
-                    system(command.c_str());
-                    if(filename.find("non-")==string::npos)
-                        emptyCones.push_back(filename);
-                    else
-                        emptyNonCones.push_back(filename);
-                    filename = "not saved";
+                    for(int i = 0; i < batch_size; i++) {
+                        string command = "rm -rf "+filenames[i];
+                        system(command.c_str());
+                        if(filenames[i].find(pathNonCones)!=string::npos)
+                            emptyNonCones.push_back(filenames[i]);
+                        else if(filenames[i].find(pathCones)!=string::npos)
+                            emptyCones.push_back(filenames[i]);
+                        filenames[i] = default_filename;
+                    }
+                    index--;
                 }
-                index--;
+                
                 break;
 
             case ' ':
                 destroyWindow("sample");
+                samples.clear();
                 return;
 
             default:
+                // newAction = false;
                 break;
         }
         key = waitKey(10);
     }
 }
 
+vector<Rect> get_sliding_windows(Rect roi, int winWidth, int winHeight, int step) {
+    vector<Rect> rects;
+    for (int i = roi.y; i < (roi.y + roi.height); i += step) {
+        if ((i + winHeight) > (roi.y + roi.height)) { break; }
+        for (int j = roi.x; j < (roi.x + roi.width); j += step) {
+            if ((j + winWidth) > (roi.x + roi.width)) { break; }
+            cv::Rect rect(j, i, winWidth, winHeight);
+            rects.push_back(rect);
+        }
+    }
+    return rects;
+}
+
+void UpdateTerminal()
+{
+    int batch_size = samples.size();
+    system("clear");
+    ROS_INFO_STREAM("frame no:"<< frame_no);
+    ROS_INFO_STREAM("num of images: "<<batch_size);
+    if(batch_size!=0) {
+        if(filenames.front().find(pathCones)!=string::npos) {
+            ROS_INFO("-----CONES-----");
+        } else if(filenames.front().find(pathNonCones)!=string::npos) {
+            ROS_INFO("-----NON-CONES-----");
+        } else {
+            ROS_INFO("-----PENDING-----");
+        }
+        if(batch_size==1) {
+            ROS_INFO_STREAM("location: "<<filenames.front());
+        } else {
+            ROS_INFO_STREAM("first location: "<<filenames.front());
+            ROS_INFO_STREAM("last location: "<<filenames.back());
+        }
+    } else {
+        ROS_WARN("no available images");
+    }
+    ROS_INFO_STREAM("w:cone | s:non-cone | e:redo | space:next frame");
+    ROS_INFO_STREAM("total cones: "<<numCones<<" non-cones: "<<numNonCones);
+}
+
 void MouseCB(int event, int x, int y, int flags, void* ptr)
 {
+    static bool first_right_click = false;
+    static Point tl_point(0,0);
+    static Point br_point(0,0);
+    // CTRL + Left Click will terminate the program
+    if(flags==(EVENT_FLAG_CTRLKEY+EVENT_FLAG_LBUTTON))
+    {
+        exit(0);
+    }
+
+    // Only Left Click: sample single image
     if(event==EVENT_LBUTTONDOWN)
     {
+        if(first_right_click) {
+            first_right_click = false;
+            imshow("img",img);
+            return;
+        }
+
+        samples.clear();
+        filenames.clear();
         int Px = x - windowSize/2;
         int Py = y - windowSize/2;
         if(Px<0) Px=0;
@@ -187,26 +260,84 @@ void MouseCB(int event, int x, int y, int flags, void* ptr)
         destroyWindow("sample");
         namedWindow("sample",WINDOW_AUTOSIZE|WINDOW_GUI_NORMAL);
         moveWindow("sample",10,10);
+        samples.push_back(sample);
+        filenames.push_back(default_filename);
         imshow("sample",sample);
         newSample = true;
     }
+
+    // Moving Mouse: show window frame
     if(event==EVENT_MOUSEMOVE)
     {
-        int Px = x - windowSize/2;
-        int Py = y - windowSize/2;
+        int Px, Py;        
+        imgmouse=imgshow.clone();
+        Rect window;       
+        Px = x - windowSize/2;
+        Py = y - windowSize/2;
         if(Px<0) Px=0;
         if(Py<0) Py=0;
         if(Px>ProcessHeight-windowSize) Px = ProcessHeight-windowSize;
         if(Py>ProcessWidth-windowSize) Py = ProcessWidth-windowSize;
-        imgmouse=imgshow.clone();
-        Rect window(Px,Py,windowSize,windowSize);
+        window = Rect(Px,Py,windowSize,windowSize);
         rectangle(imgmouse,window,Scalar(200,0,0));
+        if(first_right_click) {
+            Px = x + windowSize/2;
+            Py = y + windowSize/2;
+            if(Px<(tl_point.x+windowSize)) Px=(tl_point.x+windowSize);
+            if(Py<(tl_point.y+windowSize)) Py=(tl_point.y+windowSize);
+            if(Px>ProcessHeight) Px = ProcessHeight;
+            if(Py>ProcessWidth) Py = ProcessWidth;
+            window = Rect(tl_point, Point(Px,Py));
+            rectangle(imgmouse,window,Scalar(200,0,0));
+        }
+        circle(imgmouse,Point(Px,Py),2,Scalar(200,0,0),-1);
+        line(imgmouse, Point(Px,0), Point(Px,ProcessWidth),Scalar(200,0,0),1);
+        line(imgmouse,Point(0,Py),Point(ProcessHeight,Py),Scalar(200,0,0),1);
         imshow("img",imgmouse);
     }
-    if(event==EVENT_RBUTTONUP)
+
+    // Right Click: two right clicks select a region to sample batch of images
+    if(event==EVENT_RBUTTONDOWN)
     {
-        exit(0);
+        int Px, Py;
+        if( first_right_click == false ) {
+            Px = x - windowSize/2;
+            Py = y - windowSize/2;
+            if(Px<0) Px=0;
+            if(Py<0) Py=0;
+            if(Px>ProcessHeight-windowSize) Px = ProcessHeight-windowSize;
+            if(Py>ProcessWidth-windowSize) Py = ProcessWidth-windowSize;
+            destroyWindow("sample");
+            imgshow=img.clone();
+            tl_point = Point(Px,Py);
+            first_right_click = true;
+        } else {
+            Px = x + windowSize/2;
+            Py = y + windowSize/2;
+            if(Px<(tl_point.x+windowSize)) Px=(tl_point.x+windowSize);
+            if(Py<(tl_point.y+windowSize)) Py=(tl_point.y+windowSize);
+            if(Px>ProcessHeight) Px = ProcessHeight;
+            if(Py>ProcessWidth) Py = ProcessWidth;
+            br_point = Point(Px,Py);
+            Rect sampling_roi(tl_point, br_point);
+            sample = img(sampling_roi).clone();
+            namedWindow("sample",WINDOW_AUTOSIZE|WINDOW_GUI_NORMAL);
+            moveWindow("sample",10,10);
+            imshow("sample", sample);
+            vector<Rect> windows = get_sliding_windows(sampling_roi, windowSize, windowSize, win_stride);
+            
+            samples.clear();
+            filenames.clear();
+            for(int i = 0; i < windows.size(); i++) {
+                samples.push_back(img(windows[i]).clone());
+                filenames.push_back(default_filename);
+            }
+            first_right_click = false;
+            newSample=true;
+        }
     }
+
+    UpdateTerminal();
 }
 
 void InitGlobalVariables(ros::NodeHandle nh) {
@@ -220,6 +351,7 @@ void InitGlobalVariables(ros::NodeHandle nh) {
     nh.getParam("scale_y",scale_y);
     nh.getParam("video_filename",video_filename);
     nh.getParam("sample_size",sampleSize);
+    nh.getParam("sample_stride",win_stride);
 
     windowSize = sampleSize;
     bool absolute_path = true;
@@ -229,6 +361,9 @@ void InitGlobalVariables(ros::NodeHandle nh) {
         pathCones.insert(0,pkg_path);
         pathNonCones.insert(0,pkg_path);
     }
+    samples.clear();
+    emptyCones.clear();
+    emptyNonCones.clear();
 
     ROS_INFO("configure done");
 
@@ -241,15 +376,12 @@ int main(int argc, char** argv)
     ros::NodeHandle nh;
     InitGlobalVariables(nh);
     auto cap = VideoCapture(video_filename);
-    int count = 0;
     namedWindow("img",WINDOW_AUTOSIZE|WINDOW_GUI_NORMAL);
     setMouseCallback("img",MouseCB);
     bool first = true;
-    while(cap.isOpened()) {
-        system("clear");
-        ROS_INFO_STREAM("frame no:"<< ++count);
-        ROS_INFO_STREAM("a:- | d:+");
-        ROS_INFO_STREAM("w:cone | s:non-cone | e:redo | space:next frame");
+    while(cap.isOpened()&&ros::ok()) {
+        
+        
         std::vector<cv::Point> Locations;
         bool success = cap.read(img);
         if(!success) break;
@@ -262,11 +394,12 @@ int main(int argc, char** argv)
         resize(img,img,Size(ProcessHeight,ProcessWidth));
         imgshow=img.clone();
         imshow("img",imgshow);
-        waitKey(1);
+        // waitKey(1);
         sample = Mat(windowSize,windowSize,CV_8UC3,Scalar(0,0,0));
         CollectSamples();
         imgshow.release();
         img.release();
+        frame_no++;
     }
     return 0;
 
