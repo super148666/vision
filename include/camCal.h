@@ -31,6 +31,14 @@ public:
                               bool showResults = false);
 
     void cameraCalibration(std::vector<cv::Mat> calibrationImages);
+    
+    cv::Mat getCameraMatrix() {
+		return cameraMatrix.clone();
+	}
+	
+	cv::Mat getDistanceCoefficients() {
+		return distanceCoefficients.clone();
+	}
 
     bool saveCameraCalibration(std::string name);
 

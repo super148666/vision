@@ -17,7 +17,8 @@ Size g_chessboardSize = Size(8, 6);
 string g_calSavePath = "default.yml";
 string g_left_topic_name = "/left/image";
 string g_right_topic_name = "/right/image";
-
+bool g_left_topic_active = false;
+bool g_right_topic_active = false;
 Mat g_left_img, g_right_img;
 
 void LeftImageReceivedCB(const sensor_msgs::ImageConstPtr msg) {
@@ -34,6 +35,10 @@ void LeftImageReceivedCB(const sensor_msgs::ImageConstPtr msg) {
         ROS_ERROR("cv_bridge exception: %s", e.what());
         return;
     }
+    if (!g_left_topic_active) {
+		g_left_topic_active = true;
+		ROS_INFO("Left camera is now active.");
+	}
 }
 
 void RightImageReceivedCB(const sensor_msgs::ImageConstPtr msg) {
@@ -50,6 +55,10 @@ void RightImageReceivedCB(const sensor_msgs::ImageConstPtr msg) {
         ROS_ERROR("cv_bridge exception: %s", e.what());
         return;
     }
+    if (!g_right_topic_active) {
+		g_right_topic_active = true;
+		ROS_INFO("Right camera is now active.");
+	}
 }
 
 void ReadParams(ros::NodeHandle nh) {
@@ -195,51 +204,97 @@ int main(int argc, char **argv) {
 	ros::init(argc, argv, "stereo_calibration");
 	ros::NodeHandle nh;
 	ReadParams(nh);
+	
+	ROS_INFO("Start configure subscriber.");
 	ros::Subscriber left_image_sub, right_image_sub;
-	left_image_sub = nh.subscribe(
-    camCal leftCal(g_calibrationSquareWidth,g_chessboardSize);
-    camCal rightCal(g_calibrationSquareWidth,g_chessboardSize);
-    int fps = 10;
-    
+	left_image_sub = nh.subscribe(g_left_topic_name, 1, &LeftImageReceivedCB);
+	right_image_sub = nh.subscribe(g_right_topic_name, 1, &RightImageReceivedCB);
+	ROS_INFO("Wait for topics to be active.");
+	ros::Rate r_(10);
+	while(ros::ok() && !(g_right_topic_active && g_left_topic_active)) {
+		ros::spinOnce();
+		r_.sleep();
+	}
+	ROS_INFO("Done configure subscriber.");
+	
+	vector< Point3f > obj;
+    for (int i = 0; i < g_chessboardSize.height; i++)
+		for (int j = 0; j < g_chessboardSize.width; j++)
+			obj.push_back(Point3f((float)j * g_calibrationSquareWidth, (float)i * g_calibrationSquareWidth, 0.0f));
+			
+	vector< vector< Point2f >> left_img_points, right_img_points;
+	vector< vector< Point3f >> obj_points;
+	
+	
+    camCal left_cam_cal(g_calibrationSquareWidth,g_chessboardSize);
+    camCal right_cam_cal(g_calibrationSquareWidth,g_chessboardSize);
 
-    Mat cameraMatrix_left = Mat::eye(3, 3, CV_64F);
-    Mat distanceCoefficients_left;
-	Mat cameraMatrix_right = Mat::eye(3, 3, CV_64F);
-    Mat distanceCoefficients_right;
 
     vector<Mat> savedImages_left, savedImages_right;
 
-    vector<vector<Point2f>> markerCorners, rejectedCandidates;
-
     namedWindow("visual", WINDOW_AUTOSIZE | WINDOW_GUI_NORMAL);
-
+	r_ = ros::Rate(15);
     while (ros::ok()) {
         ros::spinOnce();
-        vector<Point2f> foundPoints;
-        bool found = false;
+        
+        vector<Point2f> left_foundPoints, right_foundPoints;
+        bool found_left = false;
+        bool found_right = false;
+        
 		Mat left_img_draw, right_img_draw, concat_img;
 		//left
-        found = findChessboardCorners(left_img, g_chessboardSize, foundPoints);
-        left_img.copyTo(left_img_draw);
+        found_left = findChessboardCorners(g_left_img, g_chessboardSize, left_foundPoints);
+        g_left_img.copyTo(left_img_draw);
 
-        if (found) {
-            drawChessboardCorners(drawToFrame, g_chessboardSize, foundPoints, found);
-        } else continue;
+        if (!found_left) {
+            continue;
+        }
+        drawChessboardCorners(left_img_draw, g_chessboardSize, left_foundPoints, found_left);
+        
+        //right
+        found_right = findChessboardCorners(g_right_img, g_chessboardSize, right_foundPoints);
+        g_right_img.copyTo(right_img_draw);
 
-        imshow("visual", drawToFrame);
-        char cKey = waitKey(1000 / 60);
+        if (!found_right) {
+            continue;
+        }
+        drawChessboardCorners(right_img_draw, g_chessboardSize, right_foundPoints, found_right);
+        
+        hconcat(left_img_draw, right_img_draw, concat_img);
         system("clear");
-        cout<<" "<<savedImages.size()<<" have been collected!\n";
+        Mat left_camera_matrix = left_cam_cal.getCameraMatrix();
+        Mat left_dist_coef = left_cam_cal.getDistanceCoefficients();
+        Mat right_camera_matrix = right_cam_cal.getCameraMatrix();
+        Mat right_dist_coef = right_cam_cal.getDistanceCoefficients();
+        ROS_INFO_STREAM("Left:\n" << 
+		                "    Camera Matrix:\n" <<
+		                left_camera_matrix <<
+		                "    Dist Coef:\n" <<
+		                left_dist_coef);
+		ROS_INFO_STREAM("Right:\n" << 
+		                "    Camera Matrix:\n" <<
+		                right_camera_matrix <<
+		                "    Dist Coef:\n" <<
+		                right_dist_coef);
+        ROS_INFO(toString(savedImages.size())<<" images have been collected for each camera!");
+        ROS_INFO("press enter 	>> start calibration.");
+        ROS_INFO("press space 	>> save this image.");
+        ROS_INFO("press s 		>> save calibration.");
+        ROS_INFO("press esc 	>> exit.");
+        ROS_INFO("press others 	>> skip this image.");
+        ROS_INFO("wait 5 sec	>> skip this image.");
+        imshow("visual", concat_img);
+        char cKey = waitKey(5000);
 
         switch (cKey) {
             case 13:    // enter
                 //start calibration
-                if (savedImages.size() < 50) {
-                    cout << "More images required, try later" << endl;
+                if (savedImages_left.size() < 50) {
+					ROS_WARN("More images required, try later");
                     break;
                 }
-                camCal1.cameraCalibration(savedImages);
-                camCal1.saveCameraCalibration("camera_calibration_results");
+                left_cam_cal.cameraCalibration(savedImages_left);
+                right_cam_cal.cameraCalibration(savedImages_right);
                 break;
 
             case 27:    // esc
@@ -249,16 +304,31 @@ int main(int argc, char **argv) {
 
             case ' ':   // space
                 //saving image
-                if (found) {
-                    Mat temp;
-                    frame.copyTo(temp);
-                    savedImages.push_back(temp);
-                }
+				Mat temp;
+				g_left_img.copyTo(temp);
+				savedImages_left.push_back(temp);
+				g_right_img.copyTo(temp);
+				savedImages_right.push_back(temp);
+				cv::cornerSubPix(g_left_img, left_foundPoints, cv::Size(5, 5), cv::Size(-1, -1),
+								 cv::TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1));
+				left_img_points.push_back(left_foundPoints);
+				cv::cornerSubPix(g_right_img, right_foundPoints, cv::Size(5, 5), cv::Size(-1, -1),
+								 cv::TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1));
+				right_img_points.push_back(right_foundPoints);
+				obj_points.push_back(obj);
                 break;
+                
+			case 's':	// s
+				ROS_INFO("Start saving calibration results.");
+				/**
+				 * Implement
+				 */
+				break;
 
-            default:
+            default:	// others
                 break;
         }
+        r_.sleep();
     }
 
     return 0;
