@@ -1,0 +1,8 @@
+/left_topic_name: '/left_image'
+/right_topic_name: '/right_image'
+/absolute_path: false
+/calibrate: true
+/save_path: 'calib.yml'
+/absolute_video_path: true
+/left_video_path: '/home/ubuntu/Videos/stereo_1_l.avi'
+/right_video_path: '/home/ubuntu/Videos/stereo_1_r.avi'

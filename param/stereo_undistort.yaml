@@ -1,0 +1,4 @@
+/left_topic_name: '/left_image'
+/right_topic_name: '/right_image'
+/absolute_path: false
+/save_path: 'calib.yml'

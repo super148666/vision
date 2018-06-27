@@ -47,20 +47,22 @@ void camCal::getChessboardCorners(std::vector<cv::Mat> images, std::vector<std::
 }
 
 void camCal::cameraCalibration(std::vector<cv::Mat> calibrationImages) {
+	std::cout<< 1;
     std::vector<std::vector<cv::Point2f>> localSpacePoints;
     this->getChessboardCorners(calibrationImages, localSpacePoints, false);
-
+	std::cout<< 2;
     std::vector<std::vector<cv::Point3f>> worldSpacePoints(1);
 
     this->getChessboardPosition(worldSpacePoints[0]);
     worldSpacePoints.resize(localSpacePoints.size(), worldSpacePoints[0]);
-
+	std::cout<< 3;
     std::vector<cv::Mat> rVectors, tVectors;
     distanceCoefficients = cv::Mat::zeros(8, 1, CV_64F);
-
+	std::cout<< 4;
     calibrateCamera(worldSpacePoints, localSpacePoints, this->chessboardSize,
                     this->cameraMatrix, this->distanceCoefficients, rVectors,
                     tVectors);
+	std::cout<< 5 <<std::endl;
 }
 
 bool camCal::saveCameraCalibration(std::string name) {

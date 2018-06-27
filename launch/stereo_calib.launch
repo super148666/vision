@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="vision" type="stereo_cam_cal" name="stereo_cam_cal" output="screen">
+        <rosparam command="load" file="$(find vision)/param/stereo_calib.yaml" />
+    </node>
+
+
+</launch>

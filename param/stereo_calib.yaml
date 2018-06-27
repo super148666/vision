@@ -1,0 +1,7 @@
+/chessboard_width: 9
+/chessboard_height: 7
+/chessboard_square_width: 0.03508
+/left_topic_name: '/left_image'
+/right_topic_name: '/right_image'
+/absolute_path: false
+/save_path: 'calib.yml'

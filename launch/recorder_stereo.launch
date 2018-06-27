@@ -1,0 +1,5 @@
+<launch>
+    <rosparam command="load" file="$(find vision)/param/record_stereo.yaml" />
+
+    <node name="recorder" pkg="vision" type="recorder_stereo" output="screen"/>
+</launch>

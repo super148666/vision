@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="vision" type="stereo_undistort" name="stereo_undistort" output="screen">
+        <rosparam command="load" file="$(find vision)/param/stereo_undistort.yaml" />
+    </node>
+
+
+</launch>

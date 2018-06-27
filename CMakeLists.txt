@@ -69,3 +69,9 @@ target_link_libraries(working ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LI
 
 add_executable(stereo_cam_cal src/stereoCalExample.cpp src/camCal.cpp)
 target_link_libraries(stereo_cam_cal ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
+add_executable(stereo_undistort src/stereoDistortExample.cpp)
+target_link_libraries(stereo_undistort ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
+add_executable(recorder_stereo src/recorder_stereo.cpp)
+target_link_libraries(recorder_stereo ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
