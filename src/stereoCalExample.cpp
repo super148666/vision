@@ -11,7 +11,7 @@
 using namespace std;
 using namespace cv;
 
-// default chessboard parameters
+// default parameters
 float g_calibrationSquareWidth = 0.03508f;
 Size g_chessboardSize = Size(8, 6);
 string g_calSavePath = "default.yml";
@@ -142,7 +142,7 @@ void ReadParams(ros::NodeHandle nh) {
 		ROS_WARN_STREAM("Missing parameters " << param_name << ".");
 		ROS_WARN_STREAM("Default setting will be used for " << param_name);
 	} else *param_string_ptr = param_string;
-	if (*param_string_ptr.empty()) {
+	if (param_string_ptr->empty()) {
 		ROS_ERROR_STREAM("Invalid empty " << param_name << ".");
 		error_exit = true;
 	}
@@ -155,7 +155,7 @@ void ReadParams(ros::NodeHandle nh) {
 		ROS_WARN_STREAM("Missing parameters " << param_name << ".");
 		ROS_WARN_STREAM("Default setting will be used for " << param_name);
 	} else *param_string_ptr = param_string;
-	if (*param_string_ptr.empty()) {
+	if (param_string_ptr->empty()) {
 		ROS_ERROR_STREAM("Invalid empty " << param_name << ".");
 		error_exit = true;
 	}
@@ -169,7 +169,7 @@ void ReadParams(ros::NodeHandle nh) {
 		ROS_WARN_STREAM("Missing parameters " << param_name << ".");
 		ROS_WARN_STREAM("Default setting will be used for " << param_name);
 	} else *param_string_ptr = param_string;
-	if (*param_string_ptr.empty()) {
+	if (param_string_ptr->empty()) {
 		ROS_ERROR_STREAM("Invalid empty " << param_name << ".");
 		error_exit = true;
 	}
@@ -183,7 +183,7 @@ void ReadParams(ros::NodeHandle nh) {
 		ROS_WARN_STREAM("Missing parameters " << param_name << ".");
 		ROS_WARN_STREAM("Default setting will be used for " << param_name);
 	} else *param_bool_ptr = param_bool;
-	ROS_INFO_STREAM("Setting " << param_name << " to " << *param_bool_ptr?"true":"false" << ".");
+	ROS_INFO_STREAM("Setting " << param_name << " to " << ((*param_bool_ptr)?"true":"false") << ".");
     
     if(!absolute_path) {
         g_calSavePath.insert(0,pkg_path);
@@ -197,7 +197,49 @@ void ReadParams(ros::NodeHandle nh) {
 
     ROS_INFO("Done read parameters.");
 
+}
 
+bool SaveCalibration(string filename, camCal cam_left, camCal cam_right,
+                     vector< vector< Point2f >> left_img_points,
+                     vector< vector< Point2f >> right_img_points,
+                     vector< vector< Point3f >> obj_points,
+                     Size img_size) {
+    if (obj_points.size() < 50) {
+        ROS_WARN_STREAM("50 images needed.\n" <<
+                        "Currently have " << obj_points.size() << " images.\n" <<
+                        "Add more images and try again.");
+        return false;
+    }
+    ROS_DEBUG("Start saving calibration.");
+    ROS_DEBUG_STREAM("Path: " << filename);
+    FileStorage fs(filename, FileStorage::WRITE);
+    Mat Kl, Kr, Dl, Dr, R, F, E, Rl, Rr, Pl, Pr, Q;
+    Kl = cam_left.getCameraMatrix();
+    Kr = cam_right.getCameraMatrix();
+    Dl = cam_left.getDistanceCoefficients();
+    Dr = cam_right.getDistanceCoefficients();
+    Vec3d T;
+    stereoCalibrate(obj_points, left_img_points, right_img_points,
+                    Kl, Dl, Kr, Dr,
+                    img_size,
+                    R, T, E, F);
+    stereoRectify(Kl, Dl, Kr, Dr, img_size, R, T, Rl, Rr, Pl, Pr, Q);
+
+    fs << "Kl" << Kl;
+    fs << "Kr" << Kr;
+    fs << "Dl" << Dl;
+    fs << "Dr" << Dr;
+    fs << "R" << R;
+    fs << "T" << T;
+    fs << "E" << E;
+    fs << "F" << F;
+    fs << "Rl" << Rl;
+    fs << "Rr" << Rr;
+    fs << "Pl" << Pl;
+    fs << "Pr" << Pr;
+    fs << "Q" << Q;
+    ROS_DEBUG("Done saving calibration.");
+    return true;
 }
 
 int main(int argc, char **argv) {
@@ -205,18 +247,19 @@ int main(int argc, char **argv) {
 	ros::NodeHandle nh;
 	ReadParams(nh);
 	
-	ROS_INFO("Start configure subscriber.");
+	ROS_DEBUG("Start configure subscriber.");
 	ros::Subscriber left_image_sub, right_image_sub;
 	left_image_sub = nh.subscribe(g_left_topic_name, 1, &LeftImageReceivedCB);
 	right_image_sub = nh.subscribe(g_right_topic_name, 1, &RightImageReceivedCB);
-	ROS_INFO("Wait for topics to be active.");
+	ROS_DEBUG("Wait for topics to be active.");
 	ros::Rate r_(10);
 	while(ros::ok() && !(g_right_topic_active && g_left_topic_active)) {
 		ros::spinOnce();
 		r_.sleep();
 	}
-	ROS_INFO("Done configure subscriber.");
-	
+	ROS_DEBUG("Done configure subscriber.");
+
+	ROS_DEBUG("Start set up the object points of chessboard.");
 	vector< Point3f > obj;
     for (int i = 0; i < g_chessboardSize.height; i++)
 		for (int j = 0; j < g_chessboardSize.width; j++)
@@ -224,11 +267,12 @@ int main(int argc, char **argv) {
 			
 	vector< vector< Point2f >> left_img_points, right_img_points;
 	vector< vector< Point3f >> obj_points;
-	
-	
+	ROS_DEBUG("Done set up object points.");
+
+	ROS_DEBUG("Start init camCal objects.");
     camCal left_cam_cal(g_calibrationSquareWidth,g_chessboardSize);
     camCal right_cam_cal(g_calibrationSquareWidth,g_chessboardSize);
-
+    ROS_DEBUG("Done init camCal objects.");
 
     vector<Mat> savedImages_left, savedImages_right;
 
@@ -276,7 +320,7 @@ int main(int argc, char **argv) {
 		                right_camera_matrix <<
 		                "    Dist Coef:\n" <<
 		                right_dist_coef);
-        ROS_INFO(toString(savedImages.size())<<" images have been collected for each camera!");
+        ROS_INFO_STREAM(to_string(savedImages_left.size()) << " images have been collected for each camera!");
         ROS_INFO("press enter 	>> start calibration.");
         ROS_INFO("press space 	>> save this image.");
         ROS_INFO("press s 		>> save calibration.");
@@ -285,16 +329,13 @@ int main(int argc, char **argv) {
         ROS_INFO("wait 5 sec	>> skip this image.");
         imshow("visual", concat_img);
         char cKey = waitKey(5000);
-
+        Mat temp;
         switch (cKey) {
             case 13:    // enter
-                //start calibration
-                if (savedImages_left.size() < 50) {
-					ROS_WARN("More images required, try later");
-                    break;
-                }
-                left_cam_cal.cameraCalibration(savedImages_left);
-                right_cam_cal.cameraCalibration(savedImages_right);
+                SaveCalibration(g_calSavePath, left_cam_cal, right_cam_cal,
+                                left_img_points, right_img_points, obj_points,
+                                g_left_img.size());
+                
                 break;
 
             case 27:    // esc
@@ -304,7 +345,6 @@ int main(int argc, char **argv) {
 
             case ' ':   // space
                 //saving image
-				Mat temp;
 				g_left_img.copyTo(temp);
 				savedImages_left.push_back(temp);
 				g_right_img.copyTo(temp);

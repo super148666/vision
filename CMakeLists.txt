@@ -67,4 +67,5 @@ target_link_libraries(recorder ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_L
 add_executable(working src/working.cpp)
 target_link_libraries(working ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES})
 
-
+add_executable(stereo_cam_cal src/stereoCalExample.cpp src/camCal.cpp)
+target_link_libraries(stereo_cam_cal ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
