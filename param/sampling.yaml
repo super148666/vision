@@ -1,10 +1,10 @@
-num_of_cones: 13663
-num_of_noncones: 46537
-path_of_cones: '/media/chao/RAID1_L/chaoz/cone_detection_data/basler_new/1/'
-path_of_noncones: '/media/chao/RAID1_L/chaoz/cone_detection_data/basler_new/0/'
+num_of_cones: 0
+num_of_noncones: 0
+path_of_cones: '/media/chao/RAID1_L/chaoz/cone_detection_data/small_dataset/1/'
+path_of_noncones: '/media/chao/RAID1_L/chaoz/cone_detection_data/small_dataset/0/'
 scale_x: 1
 scale_y: 1
 absolute_path: true
 video_filename: '/media/chao/RAID1_L/chaoz/video_recordings/video1.avi'
 sample_size: 32
-sample_stride: 4
+sample_stride: 6

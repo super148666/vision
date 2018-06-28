@@ -32,7 +32,7 @@ void LeftImageReceivedCB(const sensor_msgs::ImageConstPtr msg) {
     try
     {
 		cv_bridge::CvImagePtr cv_ptr;
-        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
+        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
 		g_left_img = cv_ptr->image.clone();
     }
     catch (cv_bridge::Exception& e)
@@ -52,7 +52,7 @@ void RightImageReceivedCB(const sensor_msgs::ImageConstPtr msg) {
     try
     {
 		cv_bridge::CvImagePtr cv_ptr;
-        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
+        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
 		g_right_img = cv_ptr->image.clone();
     }
     catch (cv_bridge::Exception& e)

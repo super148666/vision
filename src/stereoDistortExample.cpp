@@ -182,16 +182,29 @@ int main(int argc, char **argv) {
 	
 	namedWindow("visual", WINDOW_AUTOSIZE | WINDOW_GUI_NORMAL);
 	r_ = ros::Rate(15);
+
+	Ptr<StereoBM> sbm = StereoBM::create(16,9);
+	
+    sbm->setDisp12MaxDiff(1);
+    sbm->setSpeckleRange(9);
+    sbm->setSpeckleWindowSize(2);
+    sbm->setUniquenessRatio(1);
+    sbm->setTextureThreshold(1999);
+    sbm->setMinDisparity(-16);
+    sbm->setPreFilterCap(63);
+    sbm->setPreFilterSize(99);
+
+
+
     while (ros::ok()) {
         ros::spinOnce();
-        Mat left_img_undistorted, right_img_undistorted, concat_img, concat_img_undistorted, show_img;
-		
+        Mat left_img_undistorted, right_img_undistorted, depth_img, concat_img_undistorted, show_img;
         remap(g_left_img, left_img_undistorted, left_map_1, left_map_2, INTER_LINEAR);
         remap(g_right_img, right_img_undistorted, right_map_1, right_map_2, INTER_LINEAR);
-		
-        hconcat(g_left_img, g_right_img, concat_img);
+		sbm->compute(left_img_undistorted, right_img_undistorted, depth_img);
+		normalize(depth_img, depth_img, 0, 255, CV_MINMAX, CV_8U);
         hconcat(left_img_undistorted, right_img_undistorted, concat_img_undistorted);
-        vconcat(concat_img, concat_img_undistorted, show_img);
+        hconcat(concat_img_undistorted,depth_img, show_img);
         imshow("visual", show_img);
         waitKey(1);
         r_.sleep();
