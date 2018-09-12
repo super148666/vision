@@ -11,10 +11,12 @@ target_hue: 65
 minimum_pixel: 20
 target_value: 0
 subscribe_from_topic: true
-topic_name: '/camera'
+topic_name: '/left_image'
 webcam_on: false
 webcam_port: 1
 video_filename: 'lol.avi'
 #video_filename: 'test.webm'
 hog_filename: 'param/hog32.yml'
 svm_filename: 'param/svm32.yml'
+demo: true
+

@@ -1,8 +1,8 @@
 subscribe_from_topic: true
 #topic_name: '/camera'
-topic_name: '/pylon_camera_node/image_raw'
+topic_name: '/left_image'
 webcam_on: false
 webcam_port: 1
 absolute_path: true
 #video_path: '/media/ssd/video_recordings/video1.avi'
-video_path: '/media/chao/RAID1_L/chaoz/video_recordings/video3.avi'
+video_path: '/media/chao/RAID1_L/chaoz/video_recordings/video5.avi'

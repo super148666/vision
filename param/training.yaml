@@ -1,4 +1,4 @@
-num_of_datasets: 2
+num_of_datasets: 1
 
 first:
 # num_of_cones: 281
@@ -8,19 +8,19 @@ first:
 # path_of_noncones: 'training_data/webcam/non-cones/'
 #
 #second:
- num_of_cones: 0
- num_of_noncones: 1153
- path_of_cones: 'training_data/basler/cones/'
- path_of_noncones: 'training_data/basler/non-cones/'
+ num_of_cones: 1000
+ num_of_noncones: 1000
+ path_of_cones: '/media/chao/RAID1_L/chaoz/cone_detection_data/blackfly32_1/1/'
+ path_of_noncones: '/media/chao/RAID1_L/chaoz/cone_detection_data/blackfly32_1/0/'
 
-second:
- num_of_cones: 786
- num_of_noncones: 3189
- path_of_cones: 'training_data/basler32/1/'
- path_of_noncones: 'training_data/basler32/0/'
+#second:
+# num_of_cones: 786
+# num_of_noncones: 3189
+# path_of_cones: 'training_data/basler32/1/'
+# path_of_noncones: 'training_data/basler32/0/'
 
 sample_size: 32
-training_ratio: 1.0
+training_ratio: 0.9
 #HOG
 window_size: 32
 block_size: 16

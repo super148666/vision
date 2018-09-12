@@ -83,7 +83,7 @@ void loadDataLabel(vector<string> &pathNameCones, vector<int> numCones, vector<s
             //else if (i < 100)
             //    imagePath = pathNameCones[j] + "image0" + boost::lexical_cast<string>(i) + ".png";
             //else
-                imagePath = pathNameCones[j] + "image" + boost::lexical_cast<string>(i) + ".png";
+            imagePath = pathNameCones[j] + "image" + boost::lexical_cast<string>(i) + ".png";
             Mat img = imread(imagePath, CV_LOAD_IMAGE_GRAYSCALE);
             if (!img.empty()) {
                 resize(img, img, Size(SZ, SZ));
@@ -331,7 +331,7 @@ void InitGlobalVariables(ros::NodeHandle nh) {
     str_temp.clear();
     nh.getParam("/first/path_of_noncones",str_temp);
     pathNameNonCones.push_back(str_temp);
-    if(num_of_dataset>1) {
+    if(num_of_dataset==2) {
         int_temp=0;
         nh.getParam("/second/num_of_cones",int_temp);
         numCones.push_back(int_temp);
@@ -365,10 +365,10 @@ void InitGlobalVariables(ros::NodeHandle nh) {
     nh.getParam("svm_filename",svm_filename);
 
 
-    for(int i = 0; i < num_of_dataset; i ++) {
-        pathNameCones[i].insert(0, pkg_path);
-        pathNameNonCones[i].insert(0, pkg_path);
-    }
+    // for(int i = 0; i < num_of_dataset; i ++) {
+    //     pathNameCones[i].insert(0, pkg_path);
+    //     pathNameNonCones[i].insert(0, pkg_path);
+    // }
     hog_filename.insert(0,pkg_path);
     svm_filename.insert(0,pkg_path);
 

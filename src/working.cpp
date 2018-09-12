@@ -315,8 +315,8 @@ void EvaluateSVM(Mat &inputImg, Mat &outputImg, Mat &heatMap, vector<Rect> windo
                 center.y += winStartPoints[i].y;
                 rectangle(temp, windows[i], Scalar(1), -1);
                 heatMap += temp;
-                rectangle(outputImg, windows[i], Scalar(10, 255, 10));
-                circle(outputImg, center, 2, Scalar(10, 10, 255));
+                // rectangle(outputImg, windows[i], Scalar(10, 255, 10));
+                // circle(outputImg, center, 2, Scalar(10, 10, 255));
                 conePoints.push_back(center);
             }
         }
@@ -545,9 +545,9 @@ int main(int argc, char **argv) {
         medianBlur(img_process,img_process,5);
         EvaluateSVM(img_process, img_show, heatMap, windows, windowsStartPoints, conePoints, svm, hog);
         ROS_INFO("SVM evaluation done");
-        vector<Point2f> coneToSAE;
-        EvaluateConeLocation(conePoints, coneToSAE, h);
-        PublishCone(coneToSAE);
+       // vector<Point2f> coneToSAE;
+        //EvaluateConeLocation(conePoints, coneToSAE, h);
+        //PublishCone(coneToSAE);
 //        Mat out;
 
         //warpPerspective(img_show, out, h, img.size());
