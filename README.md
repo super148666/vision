@@ -33,3 +33,4 @@ Following parameters are configurable:
 source ~/vision_ws/devel/setup.bash
 roslaunch vision stereo_calib.launch
 ```
+Then follow the instruction on the terminal to complete calibration. All generated matrixs will be stored in a yaml file in save_path defined in configuration.
